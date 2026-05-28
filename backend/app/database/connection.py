@@ -12,7 +12,7 @@ class Database:
     client: AsyncIOMotorClient = None
     db = None
 
-    # Collection handles — set during startup
+    # Collection handles - set during startup
     users_col     = None
     tickets_col   = None
     chat_col      = None
@@ -23,7 +23,7 @@ db_instance = Database()
 
 
 async def connect_db():
-    """Connect to MongoDB — called on app startup."""
+    """Connect to MongoDB - called on app startup."""
     try:
         mongo_url  = os.getenv("MONGO_URL", "mongodb://localhost:27017")
         db_name    = os.getenv("DB_NAME",   "ai_support_db")
@@ -47,7 +47,7 @@ async def connect_db():
 
 
 async def disconnect_db():
-    """Disconnect from MongoDB — called on app shutdown."""
+    """Disconnect from MongoDB - called on app shutdown."""
     if db_instance.client:
         db_instance.client.close()
         logger.info("Disconnected from MongoDB")
