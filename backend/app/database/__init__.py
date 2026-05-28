@@ -1,1 +1,1 @@
-from .connection import users_col, tickets_col, chat_col, knowledge_col
+from .connection import connect_db, disconnect_db, get_db, db_instance

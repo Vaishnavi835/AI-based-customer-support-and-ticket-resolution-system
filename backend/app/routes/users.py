@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.user import UserCreate, UserResponse
-from app.database.connection import users_col
+from app.schemas.user import UserCreate
+from app.database.connection import get_db
 from datetime import datetime, timezone
 import uuid
 
@@ -9,7 +9,8 @@ router = APIRouter(tags=["users"])
 
 @router.post("/")
 async def create_user(user: UserCreate):
-    existing = await users_col.find_one({"email": user.email})
+    col = get_db().users_col
+    existing = await col.find_one({"email": user.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     doc = {
@@ -19,13 +20,14 @@ async def create_user(user: UserCreate):
         "role":       user.role,
         "created_at": datetime.now(timezone.utc),
     }
-    await users_col.insert_one(doc)
+    await col.insert_one(doc)
     return {"message": "User created", "id": doc["_id"]}
 
 
 @router.get("/")
 async def list_users():
-    users = await users_col.find({}).to_list(100)
+    col = get_db().users_col
+    users = await col.find({}).to_list(100)
     for u in users:
         u["id"] = u.pop("_id")
     return users
@@ -33,7 +35,8 @@ async def list_users():
 
 @router.get("/{user_id}")
 async def get_user(user_id: str):
-    user = await users_col.find_one({"_id": user_id})
+    col = get_db().users_col
+    user = await col.find_one({"_id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user["id"] = user.pop("_id")

@@ -1,12 +1,33 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from app.database.connection import connect_db, disconnect_db
 from app.routes.users   import router as users_router
 from app.routes.tickets import router as tickets_router
 from app.routes.chat    import router as chat_router
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup ──────────────────────────────
+    logger.info("Starting AI Support System...")
+    await connect_db()
+    logger.info("Application ready")
+    yield
+    # ── Shutdown ─────────────────────────────
+    logger.info("Shutting down...")
+    await disconnect_db()
+    logger.info("Application stopped")
+
 
 app = FastAPI(
     title="AI Customer Support System",
     description="FastAPI + MongoDB backend for AI customer support",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.include_router(users_router,   prefix="/users")
