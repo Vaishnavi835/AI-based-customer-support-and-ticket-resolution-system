@@ -10,7 +10,6 @@ class ChatMessage(BaseModel):
 
 class ChatCreate(BaseModel):
     ticket_id: str
-    user_id:   str
     message:   str
 
 

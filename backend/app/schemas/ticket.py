@@ -21,7 +21,6 @@ class TicketCreate(BaseModel):
     title:       str
     description: str
     priority:    Priority = Priority.medium
-    user_id:     str
 
 
 class TicketUpdate(BaseModel):

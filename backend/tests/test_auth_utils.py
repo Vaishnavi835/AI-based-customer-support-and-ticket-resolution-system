@@ -3,6 +3,7 @@ from fastapi import HTTPException
 
 from app.utils.auth import hash_password, verify_password
 from app.utils.jwt import create_access_token, verify_access_token
+from app.schemas.auth import RegisterRequest
 
 
 def test_hash_password_returns_non_plain_string():
@@ -48,3 +49,7 @@ def test_verify_access_token_rejects_invalid_token():
         verify_access_token("this.is.fake")
 
     assert exc_info.value.status_code == 401
+
+
+def test_register_request_does_not_accept_role():
+    assert "role" not in RegisterRequest.model_fields

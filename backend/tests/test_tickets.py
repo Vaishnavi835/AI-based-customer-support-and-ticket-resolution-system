@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from app.main import app
+from app.utils.dependencies import get_current_user
 
 client = TestClient(app)
 
@@ -16,5 +17,12 @@ def test_health():
 
 
 def test_create_ticket_missing_fields():
-    response = client.post("/tickets/", json={})
-    assert response.status_code == 422
+    app.dependency_overrides[get_current_user] = lambda: {
+        "id": "user_123",
+        "role": "customer",
+    }
+    try:
+        response = client.post("/tickets/", json={})
+        assert response.status_code == 422
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)

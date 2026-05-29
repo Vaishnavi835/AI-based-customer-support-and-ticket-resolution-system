@@ -9,6 +9,7 @@ from app.schemas.auth import RegisterRequest, TokenResponse
 from app.utils.auth import hash_password, verify_password
 from app.utils.dependencies import get_current_user
 from app.utils.jwt import create_access_token
+from app.utils.roles import Role
 
 router = APIRouter(tags=["auth"])
 
@@ -25,12 +26,13 @@ async def register(data: RegisterRequest):
         )
 
     user_id = str(uuid.uuid4())
+    role = Role.customer.value
     user_doc = {
         "_id": user_id,
         "name": data.name,
         "email": data.email,
         "password": hash_password(data.password),
-        "role": data.role,
+        "role": role,
         "created_at": datetime.now(timezone.utc),
     }
 
@@ -42,7 +44,7 @@ async def register(data: RegisterRequest):
         user_id=user_id,
         name=data.name,
         email=data.email,
-        role=data.role,
+        role=role,
     )
 
 
