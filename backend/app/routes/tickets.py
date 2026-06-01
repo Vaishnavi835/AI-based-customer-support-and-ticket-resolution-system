@@ -1,110 +1,136 @@
-from fastapi import APIRouter, HTTPException, Depends
-from app.schemas.ticket import TicketCreate, TicketUpdate
-from app.database.connection import get_db
-from app.utils.dependencies import (
-    get_current_user,
-    require_role,
+from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import Optional
+from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign
+from app.services.ticket_service import (
+    create_ticket,
+    get_ticket_by_id,
+    list_tickets,
+    get_ticket_stats,
+    update_ticket,
+    assign_ticket,
+    delete_ticket,
 )
+from app.utils.dependencies import get_current_user, require_role
 from app.utils.roles import Role
-from datetime import datetime, timezone
-import uuid
 
 router = APIRouter(tags=["tickets"])
 
 
+# ── Create ────────────────────────────────────────────────────────────────────
+
 @router.post("/")
-async def create_ticket(
+async def create_ticket_route(
     ticket: TicketCreate,
-    current_user: dict = Depends(get_current_user),   # all logged-in users
+    current_user: dict = Depends(get_current_user),
 ):
     """Any authenticated user can create a ticket."""
-    col = get_db().tickets_col
-    doc = {
-        "_id":         str(uuid.uuid4()),
-        "title":       ticket.title,
-        "description": ticket.description,
-        "priority":    ticket.priority,
-        "user_id":     current_user["id"],   # always use the logged-in user's id
-        "status":      "open",
-        "created_at":  datetime.now(timezone.utc),
-    }
-    await col.insert_one(doc)
-    return {"message": "Ticket created", "id": doc["_id"]}
+    return await create_ticket(ticket, user_id=current_user["id"])
 
+
+# ── Read — stats (must be before /{ticket_id}) ────────────────────────────────
+
+@router.get("/stats")
+async def ticket_stats(
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Ticket counts by status. Admin and Support Agent only."""
+    return await get_ticket_stats()
+
+
+# ── Read — list with filters ──────────────────────────────────────────────────
 
 @router.get("/")
-async def list_tickets(
+async def list_tickets_route(
+    status:      Optional[str] = Query(None, description="Filter by status"),
+    priority:    Optional[str] = Query(None, description="Filter by priority"),
+    assigned_to: Optional[str] = Query(None, description="Filter by assigned agent"),
+    page:        int           = Query(1,    ge=1,  description="Page number"),
+    limit:       int           = Query(10,   ge=1, le=100, description="Items per page"),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Admin/Support Agent — see ALL tickets.
-    Customer           — see only their own tickets.
+    List tickets with optional filtering and pagination.
+    Admin/Agent — all tickets. Customer — own tickets only.
     """
-    col  = get_db().tickets_col
-    role = current_user.get("role")
+    return await list_tickets(
+        user_id=current_user["id"],
+        role=current_user["role"],
+        status=status,
+        priority=priority,
+        assigned_to=assigned_to,
+        page=page,
+        limit=limit,
+    )
 
-    if role in [Role.admin, Role.support_agent]:
-        tickets = await col.find({}).to_list(100)
-    else:
-        # customers only see their own tickets
-        tickets = await col.find({"user_id": current_user["id"]}).to_list(100)
 
-    for t in tickets:
-        t["id"] = t.pop("_id")
-    return tickets
-
+# ── Read — single ticket ──────────────────────────────────────────────────────
 
 @router.get("/{ticket_id}")
-async def get_ticket(
+async def get_ticket_route(
     ticket_id: str,
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Admin/Support Agent — get any ticket.
-    Customer           — get only their own ticket.
+    Get a single ticket by ID.
+    Admin/Agent — any ticket. Customer — only their own.
     """
-    col    = get_db().tickets_col
-    ticket = await col.find_one({"_id": ticket_id})
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-
-    role = current_user.get("role")
+    ticket = await get_ticket_by_id(ticket_id)
+    role   = current_user.get("role")
     if role == Role.customer and ticket["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=403,
             detail="Access denied. You can only view your own tickets."
         )
-
-    ticket["id"] = ticket.pop("_id")
     return ticket
 
 
+# ── Update — status/priority ──────────────────────────────────────────────────
+
 @router.patch("/{ticket_id}")
-async def update_ticket(
+async def update_ticket_route(
     ticket_id: str,
-    updates: TicketUpdate,
-    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),  # customers cannot update
+    updates:   TicketUpdate,
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
 ):
-    """Only Admin and Support Agent can update ticket status/priority."""
-    col    = get_db().tickets_col
-    fields = {k: v for k, v in updates.model_dump().items() if v is not None}
-    if not fields:
-        raise HTTPException(status_code=400, detail="No fields to update")
+    """
+    Update ticket status or priority. Admin and Support Agent only.
+    Status changes are validated against allowed lifecycle transitions.
+    All changes are recorded in ticket history.
+    """
+    return await update_ticket(
+        ticket_id=ticket_id,
+        updates=updates,
+        changed_by=current_user["id"],
+    )
 
-    result = await col.update_one({"_id": ticket_id}, {"$set": fields})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-    return {"message": "Ticket updated"}
 
+# ── Assign ────────────────────────────────────────────────────────────────────
+
+@router.patch("/{ticket_id}/assign")
+async def assign_ticket_route(
+    ticket_id:   str,
+    assign_data: TicketAssign,
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """
+    Assign a ticket to a support agent.
+    Admin and Support Agent only. Validates the agent exists.
+    """
+    return await assign_ticket(
+        ticket_id=ticket_id,
+        assign_data=assign_data,
+        changed_by=current_user["id"],
+    )
+
+
+# ── Delete ────────────────────────────────────────────────────────────────────
 
 @router.delete("/{ticket_id}")
-async def delete_ticket(
+async def delete_ticket_route(
     ticket_id: str,
-    current_user: dict = Depends(require_role(Role.admin)),   # admin only
+    current_user: dict = Depends(require_role(Role.admin)),
 ):
-    """Only Admin can delete tickets."""
-    col    = get_db().tickets_col
-    result = await col.delete_one({"_id": ticket_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-    return {"message": "Ticket deleted"}
+    """
+    Permanently delete a ticket and all its chat history. Admin only.
+    """
+    return await delete_ticket(ticket_id)
