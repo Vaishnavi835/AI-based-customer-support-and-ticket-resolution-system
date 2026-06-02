@@ -93,7 +93,7 @@ async def add_message(
     if role == Role.customer and chat["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=403,
-            detail="Access denied. You can only message in your own chats."
+            detail="Access denied. You can only message in your own chats." 
         )
 
     await col.update_one(

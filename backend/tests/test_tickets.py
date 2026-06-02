@@ -51,20 +51,23 @@ def test_health():
 
 # ── Ticket lifecycle transitions ──────────────────────────────────────────────
 
-def test_open_to_in_progress_is_valid():
-    assert is_valid_transition("open", "in_progress") is True
+def test_open_to_pending_is_valid():
+    assert is_valid_transition("open", "pending") is True
 
-def test_open_to_resolved_is_invalid():
-    assert is_valid_transition("open", "resolved") is False
 
-def test_open_to_closed_is_valid():
-    assert is_valid_transition("open", "closed") is True
+def test_open_to_escalated_is_valid():
+    assert is_valid_transition("open", "escalated") is True
 
-def test_in_progress_to_resolved_is_valid():
-    assert is_valid_transition("in_progress", "resolved") is True
 
-def test_in_progress_to_open_is_invalid():
-    assert is_valid_transition("in_progress", "open") is False
+def test_pending_to_resolved_is_valid():
+    assert is_valid_transition("pending", "resolved") is True
+
+
+def test_escalated_to_resolved_is_valid():
+    assert is_valid_transition("escalated", "resolved") is True
+
+def test_pending_to_open_is_invalid():
+    assert is_valid_transition("pending", "open") is False
 
 def test_resolved_to_closed_is_valid():
     assert is_valid_transition("resolved", "closed") is True
@@ -73,7 +76,7 @@ def test_resolved_to_open_is_invalid():
     assert is_valid_transition("resolved", "open") is False
 
 def test_closed_has_no_transitions():
-    for status in ["open", "in_progress", "resolved"]:
+    for status in ["open", "pending", "resolved"]:
         assert is_valid_transition("closed", status) is False
 
 def test_invalid_status_string_returns_false():
@@ -167,7 +170,7 @@ def test_delete_ticket_forbidden_for_customer():
 def test_update_ticket_forbidden_for_customer():
     override_user(role="customer")
     try:
-        response = client.patch("/tickets/some_id", json={"status": "in_progress"})
+        response = client.patch("/tickets/some_id", json={"status": "pending"})
         assert response.status_code == 403
     finally:
         clear_overrides()

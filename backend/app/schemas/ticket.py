@@ -13,21 +13,36 @@ class Priority(str, Enum):
 
 
 class Status(str, Enum):
-    open        = "open"
-    in_progress = "in_progress"
-    resolved    = "resolved"
-    closed      = "closed"
+    open = "open"
+    pending = "pending"
+    escalated = "escalated"
+    resolved = "resolved"
+    closed = "closed"
 
 
-# ── Valid status transitions ───────────────────────────────────────────────────
-# Defines which status changes are allowed.
-# e.g. open → in_progress is allowed, but closed → open is NOT.
 
 VALID_TRANSITIONS = {
-    Status.open:        [Status.in_progress, Status.closed],
-    Status.in_progress: [Status.resolved, Status.closed],
-    Status.resolved:    [Status.closed],
-    Status.closed:      [],   # closed is final — no transitions allowed
+    Status.open: [
+        Status.pending,
+        Status.escalated,
+        Status.resolved,
+    ],
+
+    Status.pending: [
+        Status.escalated,
+        Status.resolved,
+    ],
+
+    Status.escalated: [
+        Status.pending,
+        Status.resolved,
+    ],
+
+    Status.resolved: [
+        Status.closed,
+    ],
+
+    Status.closed: [],
 }
 
 
@@ -81,9 +96,10 @@ class TicketResponse(BaseModel):
 
 
 class TicketStats(BaseModel):
-    total:       int
-    open:        int
-    in_progress: int
-    resolved:    int
-    closed:      int
+    total: int
+    open: int
+    pending: int
+    escalated: int
+    resolved: int
+    closed: int
     high_priority: int

@@ -135,21 +135,36 @@ async def get_ticket_stats() -> dict:
     """Return ticket counts by status and high-priority count. Admin only."""
     col = get_db().tickets_col
     total       = await col.count_documents({})
-    open_count  = await col.count_documents({"status": Status.open.value})
-    ip_count    = await col.count_documents({"status": Status.in_progress.value})
-    res_count   = await col.count_documents({"status": Status.resolved.value})
-    closed      = await col.count_documents({"status": Status.closed.value})
+    open_count = await col.count_documents(
+    {"status": Status.open.value}
+)
+
+    pending_count = await col.count_documents(
+        {"status": Status.pending.value}
+)
+
+    escalated_count = await col.count_documents(
+    {"status": Status.escalated.value}
+)
+
+    resolved_count = await col.count_documents(
+    {"status": Status.resolved.value}
+)
+
+    closed_count = await col.count_documents(
+    {"status": Status.closed.value}
+)
     high_prio   = await col.count_documents({"priority": Priority.high.value})
 
     return {
-        "total":         total,
-        "open":          open_count,
-        "in_progress":   ip_count,
-        "resolved":      res_count,
-        "closed":        closed,
-        "high_priority": high_prio,
-    }
-
+    "total": total,
+    "open": open_count,
+    "pending": pending_count,
+    "escalated": escalated_count,
+    "resolved": resolved_count,
+    "closed": closed_count,
+    "high_priority": high_prio,
+}
 
 # ── Update ────────────────────────────────────────────────────────────────────
 
