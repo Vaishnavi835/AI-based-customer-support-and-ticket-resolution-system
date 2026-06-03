@@ -71,8 +71,10 @@ class TicketUpdate(BaseModel):
 class TicketAssign(BaseModel):
     assigned_to: str   # user_id of the support agent
 
+class TicketReassign(BaseModel):
+    assigned_to: str    
+    reason:      str    
 
-# ── Response schemas ──────────────────────────────────────────────────────────
 
 class TicketHistoryEntry(BaseModel):
     changed_by:  str

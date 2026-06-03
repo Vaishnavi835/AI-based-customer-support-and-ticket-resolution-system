@@ -12,8 +12,8 @@ from fastapi import HTTPException
 from datetime import datetime, timezone
 from app.database.connection import get_db
 from app.schemas.ticket import (
-    TicketCreate, TicketUpdate, TicketAssign,
-    Status, Priority, is_valid_transition
+    TicketCreate, TicketUpdate, TicketAssign, TicketReassign,
+    Status, Priority, is_valid_transition, VALID_TRANSITIONS,
 )
 import uuid
 
@@ -33,7 +33,7 @@ def _history_entry(changed_by: str, field: str, old_value: str, new_value: str) 
     }
 
 
-# ── Create ────────────────────────────────────────────────────────────────────
+
 
 async def create_ticket(ticket: TicketCreate, user_id: str) -> dict:
     """
@@ -59,7 +59,6 @@ async def create_ticket(ticket: TicketCreate, user_id: str) -> dict:
     return {"message": "Ticket created", "id": doc["_id"]}
 
 
-# ── Read ──────────────────────────────────────────────────────────────────────
 
 async def get_ticket_by_id(ticket_id: str) -> dict:
     """Fetch a single ticket by ID. Raises 404 if not found."""
@@ -82,31 +81,27 @@ async def list_tickets(
 ) -> dict:
     """
     List tickets with filtering and pagination.
-
     - Admin/Support Agent: see all tickets
     - Customer: see only their own tickets
-
-    Filters: status, priority, assigned_to
-    Pagination: page and limit params
     """
     col = get_db().tickets_col
 
     # Base query — role-based filtering
     query = {}
     if role == "customer":
-        query["user_id"] = user_id   # customers only see their own
+        query["user_id"] = user_id
 
     # Optional filters
     if status:
         try:
-            Status(status)   # validate it's a real status
+            Status(status)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
         query["status"] = status
 
     if priority:
         try:
-            Priority(priority)   # validate it's a real priority
+            Priority(priority)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid priority: {priority}")
         query["priority"] = priority
@@ -123,10 +118,10 @@ async def list_tickets(
         t["id"] = t.pop("_id")
 
     return {
-        "tickets":    tickets,
-        "total":      total,
-        "page":       page,
-        "limit":      limit,
+        "tickets":     tickets,
+        "total":       total,
+        "page":        page,
+        "limit":       limit,
         "total_pages": (total + limit - 1) // limit,
     }
 
@@ -134,39 +129,26 @@ async def list_tickets(
 async def get_ticket_stats() -> dict:
     """Return ticket counts by status and high-priority count. Admin only."""
     col = get_db().tickets_col
-    total       = await col.count_documents({})
-    open_count = await col.count_documents(
-    {"status": Status.open.value}
-)
 
-    pending_count = await col.count_documents(
-        {"status": Status.pending.value}
-)
-
-    escalated_count = await col.count_documents(
-    {"status": Status.escalated.value}
-)
-
-    resolved_count = await col.count_documents(
-    {"status": Status.resolved.value}
-)
-
-    closed_count = await col.count_documents(
-    {"status": Status.closed.value}
-)
-    high_prio   = await col.count_documents({"priority": Priority.high.value})
+    total          = await col.count_documents({})
+    open_count     = await col.count_documents({"status": Status.open.value})
+    pending_count  = await col.count_documents({"status": Status.pending.value})
+    escalated_count = await col.count_documents({"status": Status.escalated.value})
+    resolved_count = await col.count_documents({"status": Status.resolved.value})
+    closed_count   = await col.count_documents({"status": Status.closed.value})
+    high_prio      = await col.count_documents({"priority": Priority.high.value})
 
     return {
-    "total": total,
-    "open": open_count,
-    "pending": pending_count,
-    "escalated": escalated_count,
-    "resolved": resolved_count,
-    "closed": closed_count,
-    "high_priority": high_prio,
-}
+        "total":         total,
+        "open":          open_count,
+        "pending":       pending_count,
+        "escalated":     escalated_count,
+        "resolved":      resolved_count,
+        "closed":        closed_count,
+        "high_priority": high_prio,
+    }
 
-# ── Update ────────────────────────────────────────────────────────────────────
+
 
 async def update_ticket(
     ticket_id: str,
@@ -187,7 +169,6 @@ async def update_ticket(
     fields  = {}
     history = []
 
-    # ── Status update with lifecycle validation ───────────────────────────────
     if updates.status is not None:
         current_status = ticket.get("status", Status.open.value)
         new_status     = updates.status.value
@@ -199,16 +180,15 @@ async def update_ticket(
             )
 
         if not is_valid_transition(current_status, new_status):
+            allowed = [s.value for s in VALID_TRANSITIONS.get(Status(current_status), [])]
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid transition: '{current_status}' → '{new_status}'. "
-                       f"Allowed: {[s.value for s in __import__('app.schemas.ticket', fromlist=['VALID_TRANSITIONS']).VALID_TRANSITIONS.get(__import__('app.schemas.ticket', fromlist=['Status']).Status(current_status), [])]}"
+                detail=f"Invalid transition: '{current_status}' → '{new_status}'. Allowed: {allowed}"
             )
 
         fields["status"] = new_status
         history.append(_history_entry(changed_by, "status", current_status, new_status))
 
-    # ── Priority update ───────────────────────────────────────────────────────
     if updates.priority is not None:
         current_priority = ticket.get("priority", Priority.medium.value)
         new_priority     = updates.priority.value
@@ -222,7 +202,6 @@ async def update_ticket(
 
     fields["updated_at"] = _now()
 
-    # Build MongoDB update — set fields + push history entries
     update_op = {"$set": fields}
     if history:
         update_op["$push"] = {"history": {"$each": history}}
@@ -231,7 +210,6 @@ async def update_ticket(
     return {"message": "Ticket updated", "changes": list(fields.keys())}
 
 
-# ── Assign ────────────────────────────────────────────────────────────────────
 
 async def assign_ticket(
     ticket_id: str,
@@ -247,7 +225,6 @@ async def assign_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # Verify the agent exists in users collection
     users_col = get_db().users_col
     agent     = await users_col.find_one({"_id": assign_data.assigned_to})
     if not agent:
@@ -255,7 +232,7 @@ async def assign_ticket(
     if agent.get("role") not in ["support_agent", "admin"]:
         raise HTTPException(status_code=400, detail="User is not a support agent or admin")
 
-    old_assigned = ticket.get("assigned_to") or "unassigned"
+    old_assigned  = ticket.get("assigned_to") or "unassigned"
     history_entry = _history_entry(
         changed_by, "assigned_to", old_assigned, assign_data.assigned_to
     )
@@ -270,23 +247,170 @@ async def assign_ticket(
     return {"message": "Ticket assigned", "assigned_to": assign_data.assigned_to}
 
 
-# ── Delete ────────────────────────────────────────────────────────────────────
 
 async def delete_ticket(ticket_id: str) -> dict:
     """
     Delete a ticket permanently.
     Also deletes all chat history linked to this ticket.
     """
-    col = get_db().tickets_col
-
+    col    = get_db().tickets_col
     ticket = await col.find_one({"_id": ticket_id})
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
 
-    # Delete linked chat history first
     chat_col = get_db().chat_col
     await chat_col.delete_many({"ticket_id": ticket_id})
-
-    # Delete the ticket
     await col.delete_one({"_id": ticket_id})
     return {"message": "Ticket and related chat history deleted"}
+
+
+async def reassign_ticket(
+    ticket_id: str,
+    reassign_data: TicketReassign,
+    changed_by: str,
+) -> dict:
+    """
+    Reassign a ticket from one agent to another.
+    Records the old agent, new agent, and reason in history.
+    """
+    col    = get_db().tickets_col
+    ticket = await col.find_one({"_id": ticket_id})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    current_agent = ticket.get("assigned_to")
+    if not current_agent:
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket is not assigned to anyone. Use assign instead."
+        )
+
+    if current_agent == reassign_data.assigned_to:
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket is already assigned to this agent."
+        )
+
+    # Validate new agent exists and has correct role
+    users_col = get_db().users_col
+    new_agent = await users_col.find_one({"_id": reassign_data.assigned_to})
+    if not new_agent:
+        raise HTTPException(status_code=404, detail="New agent not found")
+    if new_agent.get("role") not in ["support_agent", "admin"]:
+        raise HTTPException(status_code=400, detail="User is not a support agent or admin")
+
+    history_entry = _history_entry(
+        changed_by,
+        "assigned_to",
+        current_agent,
+        f"{reassign_data.assigned_to} (reason: {reassign_data.reason})"
+    )
+
+    await col.update_one(
+        {"_id": ticket_id},
+        {
+            "$set":  {"assigned_to": reassign_data.assigned_to, "updated_at": _now()},
+            "$push": {"history": history_entry},
+        }
+    )
+    return {
+        "message":      "Ticket reassigned",
+        "from_agent":   current_agent,
+        "to_agent":     reassign_data.assigned_to,
+        "reason":       reassign_data.reason,
+    }
+
+
+
+async def unassign_ticket(ticket_id: str, changed_by: str) -> dict:
+    """Remove the assigned agent from a ticket."""
+    col    = get_db().tickets_col
+    ticket = await col.find_one({"_id": ticket_id})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    current_agent = ticket.get("assigned_to")
+    if not current_agent:
+        raise HTTPException(
+            status_code=400,
+            detail="Ticket is not assigned to anyone."
+        )
+
+    history_entry = _history_entry(
+        changed_by, "assigned_to", current_agent, "unassigned"
+    )
+
+    await col.update_one(
+        {"_id": ticket_id},
+        {
+            "$set":  {"assigned_to": None, "updated_at": _now()},
+            "$push": {"history": history_entry},
+        }
+    )
+    return {"message": "Ticket unassigned", "previous_agent": current_agent}
+
+
+
+async def get_agent_tickets(agent_id: str) -> dict:
+    """Get all tickets assigned to a specific agent, grouped by status."""
+    users_col = get_db().users_col
+    agent     = await users_col.find_one({"_id": agent_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if agent.get("role") not in ["support_agent", "admin"]:
+        raise HTTPException(status_code=400, detail="User is not a support agent or admin")
+
+    col     = get_db().tickets_col
+    tickets = await col.find({"assigned_to": agent_id}).to_list(200)
+    for t in tickets:
+        t["id"] = t.pop("_id")
+
+    # Group by status
+    grouped = {"open": [], "pending": [], "escalated": [], "resolved": [], "closed": []}
+    for t in tickets:
+        status = t.get("status", "open")
+        if status in grouped:
+            grouped[status].append(t)
+
+    return {
+        "agent_id":   agent_id,
+        "agent_name": agent.get("name"),
+        "total":      len(tickets),
+        "tickets":    grouped,
+    }
+
+
+
+async def get_agent_workload() -> list:
+    """
+    Get open ticket count for every support agent.
+    Useful for admins to balance workload before assigning.
+    """
+    users_col = get_db().users_col
+    agents    = await users_col.find(
+        {"role": {"$in": ["support_agent", "admin"]}}
+    ).to_list(100)
+
+    col      = get_db().tickets_col
+    workload = []
+
+    for agent in agents:
+        agent_id    = agent["_id"]
+        open_count  = await col.count_documents({
+            "assigned_to": agent_id,
+            "status":      {"$in": ["open", "pending", "escalated"]}
+        })
+        total_count = await col.count_documents({"assigned_to": agent_id})
+
+        workload.append({
+            "agent_id":     agent_id,
+            "agent_name":   agent.get("name"),
+            "email":        agent.get("email"),
+            "role":         agent.get("role"),
+            "open_tickets": open_count,
+            "total_tickets": total_count,
+        })
+
+    # Sort by open tickets ascending — least busy first
+    workload.sort(key=lambda x: x["open_tickets"])
+    return workload

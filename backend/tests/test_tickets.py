@@ -215,3 +215,124 @@ def test_pagination_defaults():
             assert data["page"]  == 1
     finally:
         clear_overrides()
+
+# ── Assignment tests ──────────────────────────────────────────────────────────
+
+def test_workload_forbidden_for_customer():
+    override_user(role="customer")
+    try:
+        response = client.get("/tickets/workload")
+        assert response.status_code == 403
+    finally:
+        clear_overrides()
+
+
+def test_agent_tickets_forbidden_for_customer():
+    override_user(role="customer")
+    try:
+        response = client.get("/tickets/agent/some_agent_id")
+        assert response.status_code == 403
+    finally:
+        clear_overrides()
+
+
+def test_assign_forbidden_for_customer():
+    override_user(role="customer")
+    try:
+        response = client.patch("/tickets/some_id/assign", json={"assigned_to": "agent_1"})
+        assert response.status_code == 403
+    finally:
+        clear_overrides()
+
+
+def test_reassign_forbidden_for_customer():
+    override_user(role="customer")
+    try:
+        response = client.patch("/tickets/some_id/reassign", json={
+            "assigned_to": "agent_2",
+            "reason": "agent 1 is on leave"
+        })
+        assert response.status_code == 403
+    finally:
+        clear_overrides()
+
+
+def test_unassign_forbidden_for_customer():
+    override_user(role="customer")
+    try:
+        response = client.patch("/tickets/some_id/unassign")
+        assert response.status_code == 403
+    finally:
+        clear_overrides()
+
+
+def test_reassign_missing_reason():
+    """reassign needs both assigned_to and reason — reason missing gives 422."""
+    override_user(role="admin")
+    try:
+        response = client.patch("/tickets/some_id/reassign", json={
+            "assigned_to": "agent_2"
+            # reason missing
+        })
+        assert response.status_code == 422
+    finally:
+        clear_overrides()
+
+
+def test_reassign_missing_assigned_to():
+    """reassign needs both assigned_to and reason — assigned_to missing gives 422."""
+    override_user(role="admin")
+    try:
+        response = client.patch("/tickets/some_id/reassign", json={
+            "reason": "agent is unavailable"
+            # assigned_to missing
+        })
+        assert response.status_code == 422
+    finally:
+        clear_overrides()
+
+
+def test_workload_returns_list():
+    """Workload endpoint returns a list — mocked with no agents."""
+    override_user(role="admin")
+    mock_col = MagicMock()
+    mock_cursor = MagicMock()
+    mock_cursor.to_list = AsyncMock(return_value=[])
+    mock_col.find = MagicMock(return_value=mock_cursor)
+    mock_col.count_documents = AsyncMock(return_value=0)
+    mock_db = MagicMock()
+    mock_db.users_col = mock_col
+    mock_db.tickets_col = mock_col
+    try:
+        with patch("app.services.ticket_service.get_db", return_value=mock_db):
+            response = client.get("/tickets/workload")
+            assert response.status_code == 200
+            assert isinstance(response.json(), list)
+    finally:
+        clear_overrides()
+
+
+def test_assign_ticket_not_found():
+    """Assign on non-existent ticket returns 404."""
+    override_user(role="admin")
+    mock_db = make_mock_db(find_one_return=None)
+    try:
+        with patch("app.services.ticket_service.get_db", return_value=mock_db):
+            response = client.patch("/tickets/nonexistent/assign", json={
+                "assigned_to": "agent_123"
+            })
+            assert response.status_code == 404
+    finally:
+        clear_overrides()
+
+
+def test_unassign_ticket_not_found():
+    """Unassign on non-existent ticket returns 404."""
+    override_user(role="admin")
+    mock_db = make_mock_db(find_one_return=None)
+    try:
+        with patch("app.services.ticket_service.get_db", return_value=mock_db):
+            response = client.patch("/tickets/nonexistent/unassign")
+            assert response.status_code == 404
+    finally:
+        clear_overrides()

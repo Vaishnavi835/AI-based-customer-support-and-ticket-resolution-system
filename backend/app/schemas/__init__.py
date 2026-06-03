@@ -1,6 +1,6 @@
 from .user   import UserCreate, UserResponse
 from .ticket import (
-    TicketCreate, TicketUpdate, TicketAssign,
+    TicketCreate, TicketUpdate, TicketAssign, TicketReassign,
     TicketResponse, TicketStats, TicketHistoryEntry,
     Priority, Status, VALID_TRANSITIONS, is_valid_transition,
 )

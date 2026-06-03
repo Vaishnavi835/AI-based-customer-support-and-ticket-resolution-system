@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
-from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign
+from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign, TicketReassign
 from app.services.ticket_service import (
     create_ticket,
     get_ticket_by_id,
@@ -8,6 +8,10 @@ from app.services.ticket_service import (
     get_ticket_stats,
     update_ticket,
     assign_ticket,
+    reassign_ticket,
+    unassign_ticket,
+    get_agent_tickets,
+    get_agent_workload,
     delete_ticket,
 )
 from app.utils.dependencies import get_current_user, require_role
@@ -16,7 +20,6 @@ from app.utils.roles import Role
 router = APIRouter(tags=["tickets"])
 
 
-# ── Create ────────────────────────────────────────────────────────────────────
 
 @router.post("/")
 async def create_ticket_route(
@@ -27,7 +30,6 @@ async def create_ticket_route(
     return await create_ticket(ticket, user_id=current_user["id"])
 
 
-# ── Read — stats (must be before /{ticket_id}) ────────────────────────────────
 
 @router.get("/stats")
 async def ticket_stats(
@@ -37,15 +39,31 @@ async def ticket_stats(
     return await get_ticket_stats()
 
 
-# ── Read — list with filters ──────────────────────────────────────────────────
+@router.get("/workload")
+async def agent_workload_route(
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Get open ticket count per agent. Sorted least busy first."""
+    return await get_agent_workload()
+
+
+@router.get("/agent/{agent_id}")
+async def agent_tickets_route(
+    agent_id:     str,
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Get all tickets assigned to a specific agent, grouped by status."""
+    return await get_agent_tickets(agent_id)
+
+
 
 @router.get("/")
 async def list_tickets_route(
     status:      Optional[str] = Query(None, description="Filter by status"),
     priority:    Optional[str] = Query(None, description="Filter by priority"),
     assigned_to: Optional[str] = Query(None, description="Filter by assigned agent"),
-    page:        int           = Query(1,    ge=1,  description="Page number"),
-    limit:       int           = Query(10,   ge=1, le=100, description="Items per page"),
+    page:        int           = Query(1,   ge=1,       description="Page number"),
+    limit:       int           = Query(10,  ge=1, le=100, description="Items per page"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -63,7 +81,6 @@ async def list_tickets_route(
     )
 
 
-# ── Read — single ticket ──────────────────────────────────────────────────────
 
 @router.get("/{ticket_id}")
 async def get_ticket_route(
@@ -84,7 +101,6 @@ async def get_ticket_route(
     return ticket
 
 
-# ── Update — status/priority ──────────────────────────────────────────────────
 
 @router.patch("/{ticket_id}")
 async def update_ticket_route(
@@ -104,7 +120,6 @@ async def update_ticket_route(
     )
 
 
-# ── Assign ────────────────────────────────────────────────────────────────────
 
 @router.patch("/{ticket_id}/assign")
 async def assign_ticket_route(
@@ -123,14 +138,42 @@ async def assign_ticket_route(
     )
 
 
-# ── Delete ────────────────────────────────────────────────────────────────────
+
+@router.patch("/{ticket_id}/reassign")
+async def reassign_ticket_route(
+    ticket_id:     str,
+    reassign_data: TicketReassign,
+    current_user:  dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """
+    Reassign a ticket to a different agent with a reason.
+    Records old agent, new agent and reason in history.
+    """
+    return await reassign_ticket(
+        ticket_id=ticket_id,
+        reassign_data=reassign_data,
+        changed_by=current_user["id"],
+    )
+
+
+
+@router.patch("/{ticket_id}/unassign")
+async def unassign_ticket_route(
+    ticket_id:    str,
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Remove the assigned agent from a ticket. Admin and Support Agent only."""
+    return await unassign_ticket(
+        ticket_id=ticket_id,
+        changed_by=current_user["id"],
+    )
+
+
 
 @router.delete("/{ticket_id}")
 async def delete_ticket_route(
     ticket_id: str,
     current_user: dict = Depends(require_role(Role.admin)),
 ):
-    """
-    Permanently delete a ticket and all its chat history. Admin only.
-    """
+    """Permanently delete a ticket and all its chat history. Admin only."""
     return await delete_ticket(ticket_id)

@@ -5,5 +5,9 @@ from .ticket_service import (
     get_ticket_stats,
     update_ticket,
     assign_ticket,
+    reassign_ticket,
+    unassign_ticket,
+    get_agent_tickets,
+    get_agent_workload,
     delete_ticket,
 )
