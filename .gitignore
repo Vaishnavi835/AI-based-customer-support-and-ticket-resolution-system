@@ -8,3 +8,5 @@ node_modules/
 .next/
 dist/
 build/
+.pytest_cache/
+backend/.pytest_cache/
