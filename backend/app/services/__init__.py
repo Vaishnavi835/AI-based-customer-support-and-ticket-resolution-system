@@ -10,4 +10,5 @@ from .ticket_service import (
     get_agent_tickets,
     get_agent_workload,
     delete_ticket,
+    search_tickets,
 )

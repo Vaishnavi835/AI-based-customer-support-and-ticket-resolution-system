@@ -105,3 +105,17 @@ class TicketStats(BaseModel):
     resolved: int
     closed: int
     high_priority: int
+
+class TicketSearchParams(BaseModel):
+    """All possible search and filter parameters for listing tickets."""
+    search:        Optional[str] = None   # keyword in title or description
+    customer_email: Optional[str] = None  # filter by customer's email
+    status:        Optional[Status] = None
+    priority:      Optional[Priority] = None
+    assigned_to:   Optional[str] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
+    sort_by:       str = "created_at"     # created_at | priority | status
+    sort_order:    str = "desc"           # asc | desc
+    page:          int = Field(1,  ge=1)
+    limit:         int = Field(10, ge=1, le=100)

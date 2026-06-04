@@ -13,6 +13,7 @@ from app.services.ticket_service import (
     get_agent_tickets,
     get_agent_workload,
     delete_ticket,
+    search_tickets,
 )
 from app.utils.dependencies import get_current_user, require_role
 from app.utils.roles import Role
@@ -80,6 +81,32 @@ async def list_tickets_route(
         limit=limit,
     )
 
+@router.get("/search")
+async def search_tickets_route(
+    search:         Optional[str] = Query(None, description="Keyword search in title/description"),
+    customer_email: Optional[str] = Query(None, description="Filter by customer email"),
+    status:         Optional[str] = Query(None, description="Filter by status"),
+    priority:       Optional[str] = Query(None, description="Filter by priority"),
+    assigned_to:    Optional[str] = Query(None, description="Filter by assigned agent ID"),
+    sort_by:        str           = Query("created_at", description="Sort field: created_at, priority, status"),
+    sort_order:     str           = Query("desc", description="Sort order: asc or desc"),
+    page:           int           = Query(1,  ge=1, description="Page number"),
+    limit:          int           = Query(10, ge=1, le=100, description="Items per page"),
+    current_user:   dict          = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Advanced search with keyword search, customer email lookup, 
+    filtering, sorting, and pagination. Admin/Agent only."""
+    return await search_tickets(
+        search=search,
+        customer_email=customer_email,
+        status=status,
+        priority=priority,
+        assigned_to=assigned_to,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        page=page,
+        limit=limit,
+    )
 
 
 @router.get("/{ticket_id}")
