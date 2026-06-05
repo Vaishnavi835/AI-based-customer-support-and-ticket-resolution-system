@@ -1,3 +1,4 @@
+from app.services.ai_service import generate_ai_response
 from fastapi import APIRouter, HTTPException, Depends
 from app.schemas.chat import ChatCreate, ChatMessage
 from app.database.connection import get_db
@@ -7,8 +8,6 @@ from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(tags=["chat"])
-
-
 @router.post("/")
 async def start_chat(
     data: ChatCreate,
@@ -28,15 +27,26 @@ async def start_chat(
             detail="Access denied. You can only chat on your own tickets."
         )
 
+    ai_response = await generate_ai_response(data.message)
+
     doc = {
-        "_id":        str(uuid.uuid4()),
-        "ticket_id":  data.ticket_id,
-        "user_id":    current_user["id"],
-        "messages":   [{"role": "user", "content": data.message}],
-        "created_at": datetime.now(timezone.utc),
-    }
+    "_id":        str(uuid.uuid4()),
+    "ticket_id":  data.ticket_id,
+    "user_id":    current_user["id"],
+    "messages": [
+        {"role": "user", "content": data.message},
+        {"role": "assistant", "content": ai_response},
+    ],
+    "created_at": datetime.now(timezone.utc),
+}
+
     await db.chat_col.insert_one(doc)
-    return {"message": "Chat started", "id": doc["_id"]}
+
+    return {
+    "message": "Chat started",
+    "id": doc["_id"],
+    "ai_response": ai_response,
+}
 
 
 @router.get("/")
