@@ -19,6 +19,20 @@ class Status(str, Enum):
     resolved = "resolved"
     closed = "closed"
 
+class Urgency(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
+
+class Category(str, Enum):
+    authentication = "authentication"
+    billing = "billing"
+    technical = "technical"
+    account = "account"
+    finance = "finance"
+    general = "general"
+
 
 
 VALID_TRANSITIONS = {
@@ -89,6 +103,11 @@ class TicketResponse(BaseModel):
     title:       str
     description: str
     priority:    str
+    category: Optional[str] = None
+    urgency: Optional[str] = None
+    sentiment: Optional[str] = None
+    customer_mood: Optional[str] = None
+    escalation_risk: Optional[str] = None
     status:      str
     user_id:     str
     assigned_to: Optional[str] = None

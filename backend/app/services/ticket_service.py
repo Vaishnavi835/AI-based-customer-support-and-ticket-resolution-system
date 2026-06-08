@@ -15,6 +15,7 @@ from app.schemas.ticket import (
     TicketCreate, TicketUpdate, TicketAssign, TicketReassign,
     Status, Priority, is_valid_transition, VALID_TRANSITIONS,
 )
+from app.services.ai_service import classify_ticket
 from pymongo import ASCENDING, DESCENDING
 
 import uuid
@@ -44,11 +45,21 @@ async def create_ticket(ticket: TicketCreate, user_id: str) -> dict:
     - history starts empty
     """
     col = get_db().tickets_col
+
+    classification = await classify_ticket(
+    ticket.title,
+    ticket.description,
+)
     doc = {
         "_id":         str(uuid.uuid4()),
         "title":       ticket.title,
         "description": ticket.description,
-        "priority":    ticket.priority.value,
+        "category": classification["category"],
+        "priority": classification["priority"],
+        "urgency": classification["urgency"],
+        "sentiment": classification["sentiment"],
+        "customer_mood": classification["customer_mood"],
+        "escalation_risk": classification["escalation_risk"],
         "user_id":     user_id,
         "assigned_to": None,
         "status":      Status.open.value,
