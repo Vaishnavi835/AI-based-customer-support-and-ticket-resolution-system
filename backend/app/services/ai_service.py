@@ -159,4 +159,7 @@ Return:
             "category": "general",
             "priority": "medium",
             "urgency": "medium",
+            "sentiment":       "neutral",
+            "customer_mood":   "calm",
+            "escalation_risk": "low",
         }

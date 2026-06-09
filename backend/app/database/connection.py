@@ -18,7 +18,7 @@ class Database:
     tickets_col   = None
     chat_col      = None
     knowledge_col = None
-
+    escalations_col = None
 
 db_instance = Database()
 
@@ -37,7 +37,7 @@ async def connect_db():
         db_instance.tickets_col   = db_instance.db[os.getenv("TICKETS_COLLECTION",  "tickets")]
         db_instance.chat_col      = db_instance.db[os.getenv("CHAT_COLLECTION",     "chat_history")]
         db_instance.knowledge_col = db_instance.db[os.getenv("KNOWLEDGE_COLLECTION","knowledge_base")]
-
+        db_instance.escalations_col = db_instance.db[os.getenv("ESCALATIONS_COLLECTION", "escalations")]
         # Ping database to confirm the connection is active
         await db_instance.client.admin.command("ping")
         logger.info(f"Successfully connected to MongoDB: {db_name}")

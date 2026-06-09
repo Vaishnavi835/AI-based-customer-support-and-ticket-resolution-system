@@ -5,6 +5,7 @@ from app.routes.users   import router as users_router
 from app.routes.tickets import router as tickets_router
 from app.routes.chat    import router as chat_router
 from app.routes.auth    import router as auth_router
+from app.routes.escalation import router as escalation_router
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -62,7 +63,7 @@ app.include_router(auth_router,    prefix="/auth")
 app.include_router(users_router,   prefix="/users")
 app.include_router(tickets_router, prefix="/tickets")
 app.include_router(chat_router,    prefix="/chat")
-
+app.include_router(escalation_router, prefix="/escalation")
 
 @app.get("/")
 async def root():
