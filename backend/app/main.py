@@ -6,6 +6,7 @@ from app.routes.tickets import router as tickets_router
 from app.routes.chat    import router as chat_router
 from app.routes.auth    import router as auth_router
 from app.routes.escalation import router as escalation_router
+from app.services.rag_service import initialize_rag
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting AI Support System...")
     await connect_db()
+    await initialize_rag()
     logger.info("Application ready")
     yield
     logger.info("Shutting down...")
