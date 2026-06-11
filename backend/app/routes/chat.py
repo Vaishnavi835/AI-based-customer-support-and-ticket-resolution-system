@@ -1,10 +1,26 @@
+"""
+Chat routes — updated Day 18 to use RAG responses.
+
+Key change from Day 17:
+  Before: generate_contextual_response() → plain Gemini, generic answers
+  After:  generate_rag_response()        → Gemini + knowledge base, specific answers
+
+The RAG function searches the knowledge base first, then sends
+question + relevant docs to Gemini so it answers from YOUR policies.
+"""
+
 from fastapi import APIRouter, HTTPException, Depends
 from app.schemas.chat import ChatCreate, ChatMessage
 from app.database.connection import get_db
 from app.utils.dependencies import get_current_user, require_role
 from app.utils.roles import Role
+from app.services.rag_service import (
+    generate_rag_response,
+    search_knowledge_base,
+    is_rag_ready,
+)
 from app.services.ai_service import (
-    generate_contextual_response,
+    generate_contextual_response,   # fallback if RAG not ready
     summarize_conversation,
 )
 from app.services.escalation_service import (
@@ -18,6 +34,30 @@ import uuid
 router = APIRouter(tags=["chat"])
 
 
+async def get_ai_response(
+    message: str,
+    conversation_history: list,
+    ticket_context: dict,
+) -> str:
+    """
+    Get AI response using RAG if ready, otherwise fall back to plain Gemini.
+
+    RAG ready    → knowledge base search + Gemini → specific, grounded answer
+    RAG not ready → plain Gemini → generic answer (still works, just less precise)
+    """
+    if is_rag_ready():
+        return await generate_rag_response(
+            question=message,
+            ticket_context=ticket_context,
+        )
+    else:
+        # Fallback — plain Gemini without knowledge base
+        return await generate_contextual_response(
+            conversation_history=conversation_history,
+            ticket_context=ticket_context,
+        )
+
+
 # ── Start chat ────────────────────────────────────────────────────────────────
 
 @router.post("/")
@@ -25,7 +65,11 @@ async def start_chat(
     data: ChatCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    """Start a new chat session. AI responds immediately with ticket context."""
+    """
+    Start a new chat session.
+    AI responds immediately using RAG — searches knowledge base
+    before answering so the response is grounded in your policies.
+    """
     db     = get_db()
     ticket = await db.tickets_col.find_one({"_id": data.ticket_id})
     if not ticket:
@@ -38,15 +82,14 @@ async def start_chat(
             detail="Access denied. You can only chat on your own tickets."
         )
 
-    # Try AI response — fall back gracefully on failure
+    escalated_on_start = False
     try:
-        ai_response = await generate_contextual_response(
+        ai_response = await get_ai_response(
+            message=data.message,
             conversation_history=[{"role": "user", "content": data.message}],
             ticket_context=ticket,
         )
-        escalated_on_start = False
     except Exception as e:
-        # Will be escalated after doc is created (we need chat_id first)
         ai_response = (
             "I'm having trouble processing your request right now. "
             "A support agent has been notified and will assist you shortly."
@@ -60,16 +103,25 @@ async def start_chat(
         "status":     "active",
         "escalated":  False,
         "agent_id":   None,
+        "rag_enabled": is_rag_ready(),
         "messages": [
-            {"role": "user",      "content": data.message,  "timestamp": datetime.now(timezone.utc).isoformat()},
-            {"role": "assistant", "content": ai_response,   "timestamp": datetime.now(timezone.utc).isoformat()},
+            {
+                "role":      "user",
+                "content":   data.message,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+            {
+                "role":      "assistant",
+                "content":   ai_response,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "rag_used":  is_rag_ready(),
+            },
         ],
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
     }
     await db.chat_col.insert_one(doc)
 
-    # If AI failed on startup, create the escalation now that we have chat_id
     if escalated_on_start:
         await handle_ai_failure(
             chat_id=doc["_id"],
@@ -81,11 +133,12 @@ async def start_chat(
         "message":    "Chat started",
         "id":         doc["_id"],
         "ai_response": ai_response,
+        "rag_used":   is_rag_ready(),
         "escalated":  bool(escalated_on_start),
     }
 
 
-# ── Add message — context-aware with escalation check ────────────────────────
+# ── Add message ───────────────────────────────────────────────────────────────
 
 @router.post("/{chat_id}/message")
 async def add_message(
@@ -94,15 +147,14 @@ async def add_message(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Add a message to an existing chat.
+    Add a message. Uses RAG to find relevant knowledge base docs
+    before generating the AI reply.
 
-    Escalation logic:
-      - If chat is escalated AND an agent has taken over → only that agent
-        can reply; AI is bypassed entirely.
-      - If chat is escalated but no agent yet → customer can still message,
-        AI is bypassed, message queued for agent.
-      - Otherwise → check triggers on this message; escalate if needed,
-        otherwise let AI reply normally.
+    Escalation logic unchanged from Day 15:
+      - Keyword / sentiment / risk / turn count triggers → escalate
+      - Escalated + agent → agent replies, AI bypassed
+      - Escalated + no agent → queue message
+      - Normal → RAG response
     """
     db   = get_db()
     col  = db.chat_col
@@ -123,19 +175,16 @@ async def add_message(
             detail="This chat session is closed. Start a new one."
         )
 
-    ticket       = await db.tickets_col.find_one({"_id": chat["ticket_id"]})
-    history      = chat.get("messages", [])
-    is_escalated = chat.get("escalated", False)
+    ticket         = await db.tickets_col.find_one({"_id": chat["ticket_id"]})
+    history        = chat.get("messages", [])
+    is_escalated   = chat.get("escalated", False)
     assigned_agent = chat.get("agent_id")
-
-    now = datetime.now(timezone.utc).isoformat()
-    new_messages = [{"role": "user", "content": msg.content, "timestamp": now}]
+    now            = datetime.now(timezone.utc).isoformat()
+    new_messages   = [{"role": "user", "content": msg.content, "timestamp": now}]
 
     # ── Branch 1: escalated + agent has taken over ────────────────────────────
-    # Only the assigned agent (or admin) can reply; AI is bypassed.
     if is_escalated and assigned_agent:
         if role == Role.customer:
-            # Customer message is stored and queued for agent — no AI reply
             await col.update_one(
                 {"_id": chat_id},
                 {
@@ -150,7 +199,6 @@ async def add_message(
                 "agent_id":   assigned_agent,
             }
 
-        # Agent/admin posting their reply
         agent_message = {
             "role":      "agent",
             "content":   msg.content,
@@ -164,14 +212,9 @@ async def add_message(
                 "$set":  {"updated_at": datetime.now(timezone.utc)},
             }
         )
-        return {
-            "message":    "Agent reply added",
-            "ai_response": None,
-            "escalated":  True,
-        }
+        return {"message": "Agent reply added", "ai_response": None, "escalated": True}
 
     # ── Branch 2: escalated but no agent yet ─────────────────────────────────
-    # Store the message and tell the customer to wait.
     if is_escalated and not assigned_agent:
         await col.update_one(
             {"_id": chat_id},
@@ -186,7 +229,7 @@ async def add_message(
             "escalated":  True,
         }
 
-    # ── Branch 3: normal flow — check triggers then try AI ───────────────────
+    # ── Branch 3: normal flow — check triggers then RAG ──────────────────────
     history_for_ai = [{"role": m["role"], "content": m["content"]} for m in history]
     history_for_ai.append({"role": "user", "content": msg.content})
 
@@ -197,7 +240,6 @@ async def add_message(
     )
 
     if escalation_reason:
-        # Trigger detected — escalate before AI replies
         await col.update_one(
             {"_id": chat_id},
             {
@@ -213,30 +255,31 @@ async def add_message(
             note=f"Auto-detected: {escalation_reason.value}",
         )
         return {
-            "message":    "Your request has been escalated to a human agent.",
-            "ai_response": None,
-            "escalated":  True,
-            "reason":     escalation_reason.value,
+            "message":       "Your request has been escalated to a human agent.",
+            "ai_response":   None,
+            "escalated":     True,
+            "reason":        escalation_reason.value,
             "escalation_id": escalation["id"],
         }
 
-    # Normal AI reply — with fallback on failure
+    # Normal RAG response
     try:
-        ai_response = await generate_contextual_response(
+        ai_response = await get_ai_response(
+            message=msg.content,
             conversation_history=history_for_ai,
             ticket_context=ticket,
         )
+
         assistant_message = {
             "role":      "assistant",
             "content":   ai_response,
             "timestamp": now,
+            "rag_used":  is_rag_ready(),
         }
-        all_new = new_messages + [assistant_message]
-
         await col.update_one(
             {"_id": chat_id},
             {
-                "$push": {"messages": {"$each": all_new}},
+                "$push": {"messages": {"$each": new_messages + [assistant_message]}},
                 "$set":  {"updated_at": datetime.now(timezone.utc)},
             }
         )
@@ -244,10 +287,10 @@ async def add_message(
             "message":     "Message added",
             "ai_response": ai_response,
             "escalated":   False,
+            "rag_used":    is_rag_ready(),
         }
 
     except Exception as e:
-        # AI failed mid-conversation → auto-escalate
         await col.update_one(
             {"_id": chat_id},
             {
@@ -343,10 +386,7 @@ async def get_chat_summary(
     chat_id:      str,
     current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
 ):
-    """
-    Generate AI summary of the full conversation.
-    Admin and Support Agent only — useful for reviewing tickets.
-    """
+    """Generate AI summary of the full conversation. Admin/Agent only."""
     col  = get_db().chat_col
     chat = await col.find_one({"_id": chat_id})
     if not chat:
@@ -356,7 +396,6 @@ async def get_chat_summary(
         {"role": m["role"], "content": m["content"]}
         for m in chat.get("messages", [])
     ]
-
     summary = await summarize_conversation(history)
 
     return {
@@ -365,4 +404,5 @@ async def get_chat_summary(
         "summary":        summary,
         "total_messages": len(chat.get("messages", [])),
         "escalated":      chat.get("escalated", False),
+        "rag_enabled":    chat.get("rag_enabled", False),
     }

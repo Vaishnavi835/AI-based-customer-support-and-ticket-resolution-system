@@ -7,6 +7,7 @@ from app.routes.chat    import router as chat_router
 from app.routes.auth    import router as auth_router
 from app.routes.escalation import router as escalation_router
 from app.services.rag_service import initialize_rag
+from app.routes.rag import router as rag_router
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -66,7 +67,7 @@ app.include_router(users_router,   prefix="/users")
 app.include_router(tickets_router, prefix="/tickets")
 app.include_router(chat_router,    prefix="/chat")
 app.include_router(escalation_router, prefix="/escalation")
-
+app.include_router(rag_router, prefix="/rag")
 @app.get("/")
 async def root():
     return {"status": "running", "app": "AI Support System", "version": "1.0.0", "docs": "/docs"}
