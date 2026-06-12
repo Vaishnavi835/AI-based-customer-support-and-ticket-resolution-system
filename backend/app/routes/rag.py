@@ -24,6 +24,15 @@ from app.services.rag_service import (
 )
 from app.utils.dependencies import get_current_user, require_role
 from app.utils.roles import Role
+from app.schemas.knowledge import KBDocCreate, KBDocUpdate
+from app.services.kb_service import (
+    get_all_kb_docs,
+    get_kb_doc_by_id,
+    add_kb_doc,
+    update_kb_doc,
+    delete_kb_doc,
+)
+from app.services.rag_service import reindex_rag
 
 router = APIRouter(tags=["rag"])
 
@@ -139,22 +148,20 @@ async def list_knowledge_base(
     category: Optional[str] = Query(None, description="Filter by category"),
     current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
 ):
-    """
-    List all knowledge base documents.
-    Optionally filter by category.
-    Admin and Support Agent only.
-    """
+    """List all KB documents from MongoDB. Optionally filter by category."""
+    docs = await get_all_kb_docs(category=category)
+
+    if category and not docs:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No documents found for category: {category}"
+        )
+
     if category:
-        docs = get_kb_by_category(category)
-        if not docs:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No documents found for category: {category}"
-            )
         return {"category": category, "total": len(docs), "documents": docs}
 
-    docs       = get_knowledge_base()
-    categories = get_kb_categories()
+    # Get categories from the live docs (not doc_store, which is the indexed subset)
+    categories = list(set(d["category"] for d in docs))
     return {
         "total":      len(docs),
         "categories": sorted(categories),
@@ -162,17 +169,79 @@ async def list_knowledge_base(
     }
 
 
+
 @router.get("/knowledge-base/{doc_id}")
 async def get_knowledge_doc(
     doc_id:       str,
     current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
 ):
-    """Get a single knowledge base document by ID."""
-    docs = get_knowledge_base()
-    doc  = next((d for d in docs if d["id"] == doc_id), None)
+    """Get a single KB document by ID (reads from MongoDB, includes timestamps)."""
+    return await get_kb_doc_by_id(doc_id)
+    
     if not doc:
         raise HTTPException(
             status_code=404,
             detail=f"Document not found: {doc_id}"
         )
     return doc
+
+# ── Admin KB management (Day 20) ──────────────────────────────────────────────
+
+@router.post("/knowledge-base")
+async def add_knowledge_doc(
+    data: KBDocCreate,
+    current_user: dict = Depends(require_role(Role.admin)),
+):
+    """
+    Add a new document to the knowledge base.
+    Triggers automatic FAISS reindex so it's searchable immediately.
+    Admin only.
+    """
+    return await add_kb_doc(
+        title=data.title,
+        category=data.category,
+        content=data.content,
+    )
+
+
+@router.put("/knowledge-base/{doc_id}")
+async def update_knowledge_doc(
+    doc_id: str,
+    data:   KBDocUpdate,
+    current_user: dict = Depends(require_role(Role.admin)),
+):
+    """
+    Update an existing KB document.
+    Triggers automatic FAISS reindex so the new content is searchable.
+    Admin only.
+    """
+    return await update_kb_doc(
+        doc_id=doc_id,
+        updates=data.model_dump(exclude_none=True),
+    )
+
+
+@router.delete("/knowledge-base/{doc_id}")
+async def delete_knowledge_doc(
+    doc_id: str,
+    current_user: dict = Depends(require_role(Role.admin)),
+):
+    """
+    Delete a KB document permanently.
+    Triggers automatic FAISS reindex so it no longer appears in search.
+    Admin only.
+    """
+    return await delete_kb_doc(doc_id)
+
+
+@router.post("/reindex")
+async def trigger_reindex(
+    current_user: dict = Depends(require_role(Role.admin)),
+):
+    """
+    Manually trigger a FAISS reindex from MongoDB.
+    Use if the index ever gets out of sync (e.g. direct DB edit).
+    Admin only.
+    """
+    await reindex_rag()
+    return {"message": "Reindex complete", "stats": get_rag_stats()}

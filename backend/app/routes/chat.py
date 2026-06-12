@@ -39,19 +39,13 @@ async def get_ai_response(
     conversation_history: list,
     ticket_context: dict,
 ) -> str:
-    """
-    Get AI response using RAG if ready, otherwise fall back to plain Gemini.
-
-    RAG ready    → knowledge base search + Gemini → specific, grounded answer
-    RAG not ready → plain Gemini → generic answer (still works, just less precise)
-    """
     if is_rag_ready():
         return await generate_rag_response(
             question=message,
+            conversation_history=conversation_history,  # ← NEW: pass it through
             ticket_context=ticket_context,
         )
     else:
-        # Fallback — plain Gemini without knowledge base
         return await generate_contextual_response(
             conversation_history=conversation_history,
             ticket_context=ticket_context,

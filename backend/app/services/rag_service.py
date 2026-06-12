@@ -2,30 +2,22 @@
 RAG Service — Retrieval Augmented Generation
 ============================================
 
-Pipeline:
-  SETUP (once at startup):
-    knowledge docs → embedding model → 384-number vectors → FAISS index
+Day 19 additions:
+  - search_knowledge_base() now accepts a threshold param
+    (filters out low-relevance docs so Gemini doesn't hallucinate on garbage context)
+  - generate_rag_response() now accepts conversation_history
+    (last 4 messages are added to the prompt so responses are context-aware)
+  - get_knowledge_base() now returns doc_store (from MongoDB) not sample_docs.py
 
-  AT QUERY TIME:
-    question → embedding → query vector
-                               ↓
-                  FAISS finds closest doc vectors
-                               ↓
-                    top-k docs retrieved
-                               ↓
-          question + docs → Gemini → grounded answer
-
-Key concepts implemented here:
-  - Embeddings   : all-MiniLM-L6-v2 converts text → 384 numbers
-  - Chunking     : each knowledge doc is one focused chunk (done in sample_docs.py)
-  - Vector store : FAISS IndexFlatL2 stores all doc vectors in memory
-  - Semantic search : cosine-like distance finds meaning-similar docs
+Day 20 additions:
+  - initialize_rag() loads from MongoDB instead of the static file
+  - reindex_rag() rebuilds the FAISS index after any KB change
 """
 
 import os
 import logging
 import numpy as np
-from app.knowledge.sample_docs import KNOWLEDGE_BASE
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +31,11 @@ embedding_model = None   # SentenceTransformer model
 
 async def initialize_rag():
     """
-    Load the embedding model, embed every knowledge base document,
+    Load the embedding model, embed every knowledge base document from MongoDB,
     and build a FAISS index. Called once at app startup.
 
-    Why module-level globals?
-    Loading the model takes ~2 seconds and downloading it takes time once.
-    We load it once at startup and reuse it for every query.
+    Day 20 change: reads from MongoDB (knowledge_col) not sample_docs.py.
+    This means your live KB is always what's in the database.
     """
     global faiss_index, doc_store, embedding_model
 
@@ -56,38 +47,41 @@ async def initialize_rag():
         embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
         logger.info("RAG: Embedding model loaded")
 
-        # Extract the text content from each knowledge base doc
-        # This is what gets embedded — the actual text, not the metadata
-        doc_store = KNOWLEDGE_BASE.copy()
-        texts     = [doc["content"] for doc in doc_store]
+        # Load docs from MongoDB (seeded from sample_docs.py on first startup)
+        from app.database.connection import get_db
+        col  = get_db().knowledge_col
+        docs = await col.find({}).to_list(1000)
+
+        if not docs:
+            logger.warning("RAG: No documents in knowledge_base collection — index not built")
+            return
+
+        # Normalize to the shape the rest of the service expects
+        doc_store = [
+            {
+                "id":       d["_id"],
+                "title":    d["title"],
+                "category": d["category"],
+                "content":  d["content"],
+            }
+            for d in docs
+        ]
+        texts = [doc["content"] for doc in doc_store]
 
         logger.info(f"RAG: Embedding {len(texts)} knowledge base documents...")
-
-        # Generate embeddings — returns numpy array of shape (n_docs, 384)
-        # Each row is one document converted to 384 numbers
         embeddings = embedding_model.encode(
             texts,
-            show_progress_bar=True,    # shows progress in terminal
+            show_progress_bar=True,
             convert_to_numpy=True,
-        )
+        ).astype(np.float32)
 
-        # FAISS needs float32 specifically
-        embeddings = embeddings.astype(np.float32)
-
-        # Build the FAISS index
-        # IndexFlatL2 = flat (brute force) index using L2 (Euclidean) distance
-        # "Flat" means it checks every vector — perfect for small knowledge bases
-        # For 1000+ docs you'd switch to IndexIVFFlat for speed
         dimension   = embeddings.shape[1]   # 384 for all-MiniLM-L6-v2
         faiss_index = faiss.IndexFlatL2(dimension)
-
-        # Add all embeddings to the index
         faiss_index.add(embeddings)
 
         logger.info(
             f"RAG: FAISS index built — "
-            f"{faiss_index.ntotal} vectors, "
-            f"{dimension} dimensions"
+            f"{faiss_index.ntotal} vectors, {dimension} dimensions"
         )
 
     except ImportError as e:
@@ -97,20 +91,83 @@ async def initialize_rag():
         logger.error(f"RAG: Initialization failed: {e}")
 
 
-# ── 2. search_knowledge_base ──────────────────────────────────────────────────
+# ── 2. reindex_rag ────────────────────────────────────────────────────────────
 
-async def search_knowledge_base(query: str, top_k: int = 3) -> list:
+async def reindex_rag():
     """
-    Convert the query to an embedding and find the top_k most
-    semantically similar documents in the FAISS index.
+    Rebuild the FAISS index from the current MongoDB knowledge_base.
 
-    Returns a list of matching knowledge base dicts, ordered by relevance.
+    Called automatically after every add / update / delete via the admin API.
+    Also available as a manual trigger via POST /rag/reindex.
 
-    How it works:
-      1. Embed the query → 384 numbers
-      2. FAISS computes L2 distance between query vector and every stored vector
-      3. Returns indices of the top_k closest vectors
-      4. We look up those indices in doc_store to get the actual docs
+    Why: FAISS is an in-memory index. When the DB changes, the index is stale.
+    Rebuilding is fast because the model is already loaded (embedding ~50ms/doc).
+    """
+    global faiss_index, doc_store
+
+    if embedding_model is None:
+        logger.warning("RAG: Cannot reindex — embedding model not loaded yet")
+        return
+
+    try:
+        import faiss
+        from app.database.connection import get_db
+
+        col  = get_db().knowledge_col
+        docs = await col.find({}).to_list(1000)
+
+        if not docs:
+            faiss_index = None
+            doc_store   = []
+            logger.info("RAG: Index cleared (no documents in knowledge base)")
+            return
+
+        doc_store = [
+            {
+                "id":       d["_id"],
+                "title":    d["title"],
+                "category": d["category"],
+                "content":  d["content"],
+            }
+            for d in docs
+        ]
+        texts      = [doc["content"] for doc in doc_store]
+        embeddings = embedding_model.encode(texts, convert_to_numpy=True).astype(np.float32)
+
+        dimension   = embeddings.shape[1]
+        faiss_index = faiss.IndexFlatL2(dimension)
+        faiss_index.add(embeddings)
+
+        logger.info(f"RAG: Reindexed successfully — {faiss_index.ntotal} documents")
+
+    except Exception as e:
+        logger.error(f"RAG: Reindex failed: {e}")
+
+
+# ── 3. search_knowledge_base ──────────────────────────────────────────────────
+
+async def search_knowledge_base(
+    query:     str,
+    top_k:     int   = 3,
+    threshold: float = 2.0,     # Day 19: NEW param
+) -> list:
+    """
+    Convert the query to an embedding and find the top_k most semantically
+    similar documents in the FAISS index.
+
+    Day 19 addition — threshold:
+      FAISS always returns top_k results, even if they're completely unrelated.
+      A query about "weather" would return billing/auth docs because FAISS finds
+      the "closest" vectors it has, even if they're far away.
+
+      L2 distance interpretation:
+        0.0 – 0.5  → very similar (nearly identical text)
+        0.5 – 1.5  → related (same topic)
+        1.5 – 2.0  → loosely related (borderline)
+        2.0+       → unrelated — filtered out by default threshold
+
+      Lower threshold = stricter (fewer but more precise results)
+      Higher threshold = looser (more results, risk of noise)
     """
     if faiss_index is None or embedding_model is None:
         logger.warning("RAG: Not initialized — returning empty results")
@@ -120,32 +177,33 @@ async def search_knowledge_base(query: str, top_k: int = 3) -> list:
         return []
 
     try:
-        # Embed the query — same model, same 384-dimension space
         query_embedding = embedding_model.encode(
             [query],
             convert_to_numpy=True,
         ).astype(np.float32)
 
-        # Search FAISS
-        # D = distances array  shape: (1, top_k)
-        # I = indices array    shape: (1, top_k)
-        # Lower distance = more similar
         actual_k = min(top_k, faiss_index.ntotal)
         D, I     = faiss_index.search(query_embedding, actual_k)
 
-        # Build results — attach distance score so caller can see confidence
         results = []
         for idx, distance in zip(I[0], D[0]):
-            if idx == -1:          # FAISS returns -1 for empty slots
+            if idx == -1:
+                continue
+            # Day 19: filter out low-relevance results
+            if distance > threshold:
+                logger.debug(
+                    f"RAG: Skipping doc '{doc_store[idx]['title']}' "
+                    f"(distance {distance:.2f} > threshold {threshold})"
+                )
                 continue
             doc = doc_store[idx].copy()
-            doc["relevance_score"] = float(distance)   # lower = more relevant
+            doc["relevance_score"] = float(distance)
             results.append(doc)
 
         logger.info(
-            f"RAG: Query '{query[:50]}' → "
-            f"{len(results)} results, "
-            f"best distance: {D[0][0]:.3f}"
+            f"RAG: '{query[:50]}' → "
+            f"{len(results)} results within threshold "
+            f"(best: {D[0][0]:.3f})"
         )
         return results
 
@@ -154,36 +212,37 @@ async def search_knowledge_base(query: str, top_k: int = 3) -> list:
         return []
 
 
-# ── 3. generate_rag_response ──────────────────────────────────────────────────
+# ── 4. generate_rag_response ──────────────────────────────────────────────────
 
 async def generate_rag_response(
-    question: str,
-    ticket_context: dict = None,
+    question:             str,
+    conversation_history: Optional[list] = None,   # Day 19: NEW param
+    ticket_context:       Optional[dict] = None,
 ) -> str:
     """
     Full RAG pipeline:
-      1. Search knowledge base for relevant docs
-      2. Build an augmented prompt: question + retrieved context
-      3. Call Gemini with the augmented prompt
-      4. Return a grounded, specific answer
+      1. Search knowledge base (with threshold filtering)
+      2. Build augmented prompt: ticket + recent history + KB docs + question
+      3. Call Gemini
+      4. Return grounded answer
 
-    The key difference from plain Gemini:
-      Without RAG → Gemini answers from general training data (generic)
-      With RAG    → Gemini answers using YOUR company's actual policies (specific)
+    Day 19 addition — conversation_history:
+      Without this, every reply treats the conversation as if it just started.
+      Gemini has no idea the user already tried clearing the cache.
+      Passing the last 4 messages fixes this — the AI can say
+      "Since clearing the cache didn't work, let's try..."
     """
-    from app.services.ai_service import client  # reuse existing Gemini client
+    from app.services.ai_service import client
 
-    # Step 1 — retrieve relevant docs
     relevant_docs = await search_knowledge_base(question, top_k=3)
 
-    # Step 2 — build the augmented prompt
     prompt = _build_rag_prompt(
         question=question,
         relevant_docs=relevant_docs,
         ticket_context=ticket_context,
+        conversation_history=conversation_history,  # Day 19
     )
 
-    # Step 3 — call Gemini with the enriched prompt
     try:
         response = client.models.generate_content(
             model="gemini-2.5-flash",
@@ -199,20 +258,24 @@ async def generate_rag_response(
         )
 
 
+# ── 5. _build_rag_prompt ──────────────────────────────────────────────────────
+
 def _build_rag_prompt(
-    question: str,
-    relevant_docs: list,
-    ticket_context: dict = None,
+    question:             str,
+    relevant_docs:        list,
+    ticket_context:       Optional[dict] = None,
+    conversation_history: Optional[list] = None,   # Day 19: NEW param
 ) -> str:
     """
-    Build the augmented prompt that gets sent to Gemini.
+    Build the augmented prompt sent to Gemini.
 
-    Structure:
-      [System instruction]
-      [Ticket context — optional]
-      [Retrieved knowledge base docs]
-      [Customer question]
-      [Instruction to use the docs]
+    Structure (in order):
+      1. System instruction
+      2. Ticket context (optional)
+      3. Recent conversation — last 4 messages (Day 19, optional)
+      4. Retrieved KB docs
+      5. Current question
+      6. Output instruction
     """
     prompt = (
         "You are a helpful customer support assistant. "
@@ -222,16 +285,26 @@ def _build_rag_prompt(
         "and offer to connect them with a human agent.\n\n"
     )
 
-    # Add ticket context if available
+    # 1. Ticket context
     if ticket_context:
         prompt += (
             f"Ticket context:\n"
-            f"  Title: {ticket_context.get('title', '')}\n"
+            f"  Title:    {ticket_context.get('title', '')}\n"
             f"  Category: {ticket_context.get('category', '')}\n"
-            f"  Status: {ticket_context.get('status', '')}\n\n"
+            f"  Status:   {ticket_context.get('status', '')}\n\n"
         )
 
-    # Add retrieved knowledge base docs
+    # 2. Recent conversation history (Day 19)
+    # Why only last 4? Token limit. Older turns add noise, not value.
+    if conversation_history:
+        recent = conversation_history[-4:]
+        prompt += "Recent conversation:\n"
+        for msg in recent:
+            role = "Customer" if msg["role"] == "user" else "Support Agent"
+            prompt += f"  {role}: {msg['content']}\n"
+        prompt += "\n"
+
+    # 3. Retrieved KB docs
     if relevant_docs:
         prompt += "Relevant knowledge base articles:\n"
         prompt += "-" * 40 + "\n"
@@ -241,7 +314,8 @@ def _build_rag_prompt(
         prompt += "-" * 40 + "\n\n"
     else:
         prompt += (
-            "Note: No relevant knowledge base articles found for this query.\n\n"
+            "Note: No relevant knowledge base articles found for this query. "
+            "Answer based on the conversation context if possible.\n\n"
         )
 
     prompt += f"Customer question: {question}\n\n"
@@ -261,26 +335,29 @@ def is_rag_ready() -> bool:
 
 
 def get_knowledge_base() -> list:
-    """Return all knowledge base documents."""
-    return KNOWLEDGE_BASE
+    """
+    Return all knowledge base documents.
+    Day 20: returns doc_store (populated from MongoDB) not the static file.
+    """
+    return doc_store
 
 
 def get_kb_by_category(category: str) -> list:
     """Return all docs for a given category."""
-    return [doc for doc in KNOWLEDGE_BASE if doc["category"] == category]
+    return [doc for doc in doc_store if doc["category"] == category]
 
 
 def get_kb_categories() -> list:
     """Return all unique categories in the knowledge base."""
-    return list(set(doc["category"] for doc in KNOWLEDGE_BASE))
+    return list(set(doc["category"] for doc in doc_store))
 
 
 def get_rag_stats() -> dict:
-    """Return stats about the current RAG index — useful for a health endpoint."""
+    """Return stats about the current RAG index."""
     return {
-        "ready":        is_rag_ready(),
-        "total_docs":   faiss_index.ntotal if faiss_index else 0,
-        "dimensions":   faiss_index.d      if faiss_index else 0,
-        "model":        "all-MiniLM-L6-v2",
-        "kb_size":      len(KNOWLEDGE_BASE),
+        "ready":      is_rag_ready(),
+        "total_docs": faiss_index.ntotal if faiss_index else 0,
+        "dimensions": faiss_index.d      if faiss_index else 0,
+        "model":      "all-MiniLM-L6-v2",
+        "kb_size":    len(doc_store),
     }
