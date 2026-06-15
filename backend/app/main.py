@@ -5,6 +5,11 @@ from app.routes.users   import router as users_router
 from app.routes.tickets import router as tickets_router
 from app.routes.chat    import router as chat_router
 from app.routes.auth    import router as auth_router
+from app.routes.escalation import router as escalation_router
+from app.services.rag_service import initialize_rag
+from app.routes.rag import router as rag_router
+from app.services.kb_service import seed_knowledge_base 
+
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +20,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting AI Support System...")
     await connect_db()
+    await seed_knowledge_base()
+    await initialize_rag()
     logger.info("Application ready")
     yield
     logger.info("Shutting down...")
@@ -28,13 +35,42 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for error in exc.errors():
+        field = " -> ".join(str(loc) for loc in error["loc"])
+        errors.append({
+            "field": field,
+            "message": error["msg"],
+            "type": error["type"],
+        })
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Validation failed",
+            "errors": errors,
+        },
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. Please try again later."},
+    )
 
 app.include_router(auth_router,    prefix="/auth")
 app.include_router(users_router,   prefix="/users")
 app.include_router(tickets_router, prefix="/tickets")
 app.include_router(chat_router,    prefix="/chat")
-
-
+app.include_router(escalation_router, prefix="/escalation")
+app.include_router(rag_router, prefix="/rag")
 @app.get("/")
 async def root():
     return {"status": "running", "app": "AI Support System", "version": "1.0.0", "docs": "/docs"}

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -53,17 +53,58 @@ async def login(data: OAuth2PasswordRequestForm = Depends()):
     users_col = get_db().users_col
     user = await users_col.find_one({"email": data.username})
 
+    # Note: To avoid email enumeration (letting attackers guess valid emails),
+    # we return "Invalid email or password" unless the account is locked out.
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
+    # 1. Check if the account is currently locked out
+    lockout_until = user.get("lockout_until")
+    if lockout_until:
+        # Ensure the datetime is timezone aware
+        if lockout_until.tzinfo is None:
+            lockout_until = lockout_until.replace(tzinfo=timezone.utc)
+        
+        now = datetime.now(timezone.utc)
+        if now < lockout_until:
+            time_remaining = lockout_until - now
+            minutes_left = int(time_remaining.total_seconds() / 60) + 1
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Account is temporarily locked. Try again in {minutes_left} minutes.",
+            )
+
+    # 2. Check the password
     hashed_password = user.get("password")
     if not hashed_password or not verify_password(data.password, hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+        # Incorrect password: increment failed attempts count
+        attempts = user.get("failed_login_attempts", 0) + 1
+        update_fields = {"failed_login_attempts": attempts}
+
+        # Lock account if failed attempts reach 5
+        if attempts >= 5:
+            lockout_time = datetime.now(timezone.utc) + timedelta(minutes=15)
+            update_fields["lockout_until"] = lockout_time
+            await users_col.update_one({"_id": user["_id"]}, {"$set": update_fields})
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is temporarily locked due to multiple failed login attempts. Try again in 15 minutes.",
+            )
+        else:
+            await users_col.update_one({"_id": user["_id"]}, {"$set": update_fields})
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
+
+    # 3. Successful login: reset attempts and lockout timers
+    if user.get("failed_login_attempts", 0) > 0 or user.get("lockout_until"):
+        await users_col.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"failed_login_attempts": 0, "lockout_until": None}}
         )
 
     access_token = create_access_token({"sub": user["_id"], "email": user["email"]})
@@ -74,6 +115,7 @@ async def login(data: OAuth2PasswordRequestForm = Depends()):
         email=user["email"],
         role=user["role"],
     )
+
 
 
 @router.get("/me")

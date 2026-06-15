@@ -23,6 +23,7 @@ def make_mock_db(find_one_return=None, count=0, find_list=None):
     """Build a mock db instance with async collection methods."""
     # cursor chain: col.find(q).skip(n).limit(n).to_list(n)
     mock_cursor = MagicMock()
+    mock_cursor.sort  = MagicMock(return_value=mock_cursor)
     mock_cursor.skip  = MagicMock(return_value=mock_cursor)
     mock_cursor.limit = MagicMock(return_value=mock_cursor)
     mock_cursor.to_list = AsyncMock(return_value=find_list or [])
@@ -334,5 +335,73 @@ def test_unassign_ticket_not_found():
         with patch("app.services.ticket_service.get_db", return_value=mock_db):
             response = client.patch("/tickets/nonexistent/unassign")
             assert response.status_code == 404
+    finally:
+        clear_overrides()
+    # ── Search endpoint tests ─────────────────────────────────────────────────────
+
+def test_search_forbidden_for_customer():
+    """Customers cannot access the search endpoint."""
+    override_user(role="customer")
+    try:
+        response = client.get("/tickets/search")
+        assert response.status_code == 403
+    finally:
+        clear_overrides()
+
+
+def test_search_invalid_status():
+    """Search with invalid status returns 400."""
+    override_user(role="admin")
+    try:
+        response = client.get("/tickets/search?status=invalid_status")
+        assert response.status_code == 400
+    finally:
+        clear_overrides()
+
+
+def test_search_invalid_priority():
+    """Search with invalid priority returns 400."""
+    override_user(role="admin")
+    try:
+        response = client.get("/tickets/search?priority=urgent")
+        assert response.status_code == 400
+    finally:
+        clear_overrides()
+
+
+def test_search_invalid_page():
+    """Search with page=0 returns 422."""
+    override_user(role="admin")
+    try:
+        response = client.get("/tickets/search?page=0")
+        assert response.status_code == 422
+    finally:
+        clear_overrides()
+
+
+def test_search_returns_paginated_results():
+    """Search with mocked DB returns proper pagination structure."""
+    override_user(role="admin")
+    mock_cursor = MagicMock()
+    mock_cursor.sort = MagicMock(return_value=mock_cursor)
+    mock_cursor.skip = MagicMock(return_value=mock_cursor)
+    mock_cursor.limit = MagicMock(return_value=mock_cursor)
+    mock_cursor.to_list = AsyncMock(return_value=[])
+
+    mock_col = MagicMock()
+    mock_col.count_documents = AsyncMock(return_value=0)
+    mock_col.find = MagicMock(return_value=mock_cursor)
+
+    mock_db = MagicMock()
+    mock_db.tickets_col = mock_col
+    try:
+        with patch("app.services.ticket_service.get_db", return_value=mock_db):
+            response = client.get("/tickets/search?status=open")
+            assert response.status_code == 200
+            data = response.json()
+            assert "tickets" in data
+            assert "total" in data
+            assert "filters_applied" in data
+            assert data["filters_applied"]["status"] == "open"
     finally:
         clear_overrides()

@@ -15,8 +15,10 @@ from app.schemas.ticket import (
     TicketCreate, TicketUpdate, TicketAssign, TicketReassign,
     Status, Priority, is_valid_transition, VALID_TRANSITIONS,
 )
-import uuid
+from app.services.ai_service import classify_ticket
+from pymongo import ASCENDING, DESCENDING
 
+import uuid
 
 def _now():
     return datetime.now(timezone.utc)
@@ -43,11 +45,21 @@ async def create_ticket(ticket: TicketCreate, user_id: str) -> dict:
     - history starts empty
     """
     col = get_db().tickets_col
+
+    classification = await classify_ticket(
+    ticket.title,
+    ticket.description,
+)
     doc = {
         "_id":         str(uuid.uuid4()),
         "title":       ticket.title,
         "description": ticket.description,
-        "priority":    ticket.priority.value,
+        "category": classification["category"],
+        "priority": classification["priority"],
+        "urgency": classification["urgency"],
+        "sentiment": classification["sentiment"],
+        "customer_mood": classification["customer_mood"],
+        "escalation_risk": classification["escalation_risk"],
         "user_id":     user_id,
         "assigned_to": None,
         "status":      Status.open.value,
@@ -113,7 +125,8 @@ async def list_tickets(
     skip  = (page - 1) * limit
     total = await col.count_documents(query)
 
-    tickets = await col.find(query).skip(skip).limit(limit).to_list(limit)
+    tickets = await col.find(query).sort("created_at", DESCENDING).skip(skip).limit(limit).to_list(limit)
+
     for t in tickets:
         t["id"] = t.pop("_id")
 
@@ -414,3 +427,94 @@ async def get_agent_workload() -> list:
     # Sort by open tickets ascending — least busy first
     workload.sort(key=lambda x: x["open_tickets"])
     return workload
+
+async def search_tickets(
+    search: str = None,
+    customer_email: str = None,
+    status: str = None,
+    priority: str = None,
+    assigned_to: str = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+    page: int = 1,
+    limit: int = 10,
+) -> dict:
+    """
+    Advanced ticket search with:
+    - Keyword search (title/description)
+    - Customer email lookup
+    - Status/priority/agent filtering
+    - Sorting
+    - Pagination
+    """
+    col = get_db().tickets_col
+    query = {}
+
+    # --- 1. Keyword search in title and description ---
+    if search:
+        query["$or"] = [
+            {"title":       {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+        ]
+
+    # --- 2. Search by customer email (cross-collection lookup) ---
+    if customer_email:
+        users_col = get_db().users_col
+        user = await users_col.find_one({"email": customer_email})
+        if not user:
+            raise HTTPException(status_code=404, detail=f"No customer found with email: {customer_email}")
+        query["user_id"] = user["_id"]
+
+    # --- 3. Filter by status ---
+    if status:
+        try:
+            Status(status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+        query["status"] = status
+
+    # --- 4. Filter by priority ---
+    if priority:
+        try:
+            Priority(priority)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid priority: {priority}")
+        query["priority"] = priority
+
+    # --- 5. Filter by assigned agent ---
+    if assigned_to:
+        query["assigned_to"] = assigned_to
+
+    # --- 6. Sorting ---
+    allowed_sort_fields = ["created_at", "priority", "status", "updated_at"]
+    if sort_by not in allowed_sort_fields:
+        sort_by = "created_at"
+
+    from pymongo import ASCENDING, DESCENDING
+    direction = ASCENDING if sort_order == "asc" else DESCENDING
+
+    # --- 7. Pagination ---
+    skip  = (page - 1) * limit
+    total = await col.count_documents(query)
+
+    tickets = await col.find(query).sort(sort_by, direction).skip(skip).limit(limit).to_list(limit)
+
+    for t in tickets:
+        t["id"] = t.pop("_id")
+
+    return {
+        "tickets":     tickets,
+        "total":       total,
+        "page":        page,
+        "limit":       limit,
+        "total_pages": (total + limit - 1) // limit,
+        "filters_applied": {
+            "search":         search,
+            "customer_email": customer_email,
+            "status":         status,
+            "priority":       priority,
+            "assigned_to":    assigned_to,
+            "sort_by":        sort_by,
+            "sort_order":     sort_order,
+        }
+    }
