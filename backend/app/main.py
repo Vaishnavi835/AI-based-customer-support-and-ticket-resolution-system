@@ -9,6 +9,7 @@ from app.routes.escalation import router as escalation_router
 from app.services.rag_service import initialize_rag
 from app.routes.rag import router as rag_router
 from app.services.kb_service import seed_knowledge_base 
+
 import logging
 
 logging.basicConfig(level=logging.INFO)
