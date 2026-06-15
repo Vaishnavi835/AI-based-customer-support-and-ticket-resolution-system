@@ -2,7 +2,7 @@
 RAG Service — Retrieval Augmented Generation
 ============================================
 
-Day 19 additions:
+Day 19 additions.
   - search_knowledge_base() now accepts a threshold param
     (filters out low-relevance docs so Gemini doesn't hallucinate on garbage context)
   - generate_rag_response() now accepts conversation_history
