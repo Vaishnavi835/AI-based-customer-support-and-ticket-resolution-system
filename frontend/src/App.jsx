@@ -19,14 +19,17 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./components/ThemeSwitcher";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/Navbar";
 
 // Pages
 import Login        from "./pages/Login";
 import Register     from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard    from "./pages/Dashboard";
 import MyTickets    from "./pages/MyTickets";
+import Profile      from "./pages/Profile";
 
 // Placeholder pages — you'll build these in Days 22-25
 const TicketList     = () => <PlaceholderPage title="All Tickets"      link="/tickets" />;
@@ -55,6 +58,7 @@ function AppRoutes() {
           {/* Public routes */}
           <Route path="/login"    element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Smart home redirect */}
           <Route path="/" element={<HomeRedirect />} />
@@ -99,6 +103,13 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
 
+          {/* Profile route for any authenticated user */}
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          } />
+
           {/* Error pages */}
           <Route path="/unauthorized" element={<Unauthorized />} />
           <Route path="*"             element={<NotFound />}      />
@@ -111,9 +122,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }
@@ -123,7 +136,6 @@ function PlaceholderPage({ title, link }) {
   return (
     <div className="placeholder-page">
       <h1>{title}</h1>
-      <p>This page is coming in Days 22–25.</p>
       <a href={link} className="btn btn-primary">Go back</a>
     </div>
   );
