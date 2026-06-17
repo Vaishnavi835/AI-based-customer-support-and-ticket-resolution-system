@@ -30,11 +30,14 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard    from "./pages/Dashboard";
 import MyTickets    from "./pages/MyTickets";
 import Profile      from "./pages/Profile";
+import AgentDashboard from "./pages/AgentDashboard";
+import Escalations from "./pages/Escalations";
+import TicketDetail from "./pages/TicketDetail";
+
+
 
 // Placeholder pages — you'll build these in Days 22-25
-const TicketList     = () => <PlaceholderPage title="All Tickets"      link="/tickets" />;
-const TicketDetail   = () => <PlaceholderPage title="Ticket Detail"    link="/tickets" />;
-const Escalations    = () => <PlaceholderPage title="Escalation Queue" link="/dashboard" />;
+const TicketList     = () => <PlaceholderPage title="All Tickets"      link="/dashboard" />;
 const KnowledgeBase  = () => <PlaceholderPage title="Knowledge Base"   link="/dashboard" />;
 const Unauthorized   = () => <PlaceholderPage title="403 — Access Denied" link="/" />;
 const NotFound       = () => <PlaceholderPage title="404 — Page Not Found" link="/" />;
@@ -109,6 +112,13 @@ function AppRoutes() {
               <Profile />
             </ProtectedRoute>
           } />
+
+          <Route path="/agent-dashboard" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+               <AgentDashboard />
+            </ProtectedRoute>
+          } />
+
 
           {/* Error pages */}
           <Route path="/unauthorized" element={<Unauthorized />} />

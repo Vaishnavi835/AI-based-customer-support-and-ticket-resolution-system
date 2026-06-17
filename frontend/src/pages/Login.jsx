@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import CustomCaptcha from "../components/CustomCaptcha";
 
 /**
  * DemoEscalation
@@ -71,23 +72,27 @@ function DemoEscalation() {
 }
 
 export default function Login() {
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
-  const [error,    setError]    = useState("");
-  const [loading,  setLoading]  = useState(false);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [error,        setError]        = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [captchaOk,    setCaptchaOk]    = useState(false);
 
-  const { login }   = useAuth();
-  const navigate    = useNavigate();
+  const { login }  = useAuth();
+  const navigate   = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
 
+    if (!captchaOk) {
+      setError("Please complete the human verification puzzle.");
+      return;
+    }
+
+    setLoading(true);
     try {
       const user = await login(email, password);
-
-      // Redirect based on role
       if (user.role === "admin" || user.role === "support_agent") {
         navigate("/dashboard");
       } else {
@@ -96,6 +101,7 @@ export default function Login() {
     } catch (err) {
       const msg = err.response?.data?.detail || "Login failed. Check your credentials.";
       setError(msg);
+      setCaptchaOk(false); // force re-verification on failure
     } finally {
       setLoading(false);
     }
@@ -171,7 +177,14 @@ export default function Login() {
               <label htmlFor="remember">Remember me for 30 days</label>
             </div>
 
-            <button type="submit" className="register-submit" disabled={loading}>
+            {/* ── Custom Puzzle CAPTCHA ─────────────────── */}
+            <CustomCaptcha onVerified={(ok) => setCaptchaOk(ok)} />
+
+            <button
+              type="submit"
+              className="register-submit"
+              disabled={loading || !captchaOk}
+            >
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>

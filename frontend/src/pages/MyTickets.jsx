@@ -96,7 +96,6 @@ export default function MyTickets() {
   const [drawerOpen, setDrawerOpen]               = useState(false);
   const [emailNotify, setEmailNotify]             = useState(true);
   const [autoRefresh, setAutoRefresh]             = useState(false);
-  const [defaultPriority, setDefaultPriority]     = useState("medium");
   const [compactView, setCompactView]             = useState(false);
 
   /* Status filter (history tab) */
@@ -105,7 +104,6 @@ export default function MyTickets() {
   /* Create form */
   const [title,       setTitle]       = useState("");
   const [description, setDescription] = useState("");
-  const [priority,    setPriority]    = useState("medium");
   const [creating,    setCreating]    = useState(false);
   const [formError,   setFormError]   = useState("");
   const [formSuccess, setFormSuccess] = useState("");
@@ -142,9 +140,9 @@ export default function MyTickets() {
     e.preventDefault();
     setFormError(""); setFormSuccess(""); setCreating(true);
     try {
-      await ticketsAPI.create(title, description, priority);
+      await ticketsAPI.create(title, description);
       setFormSuccess("Ticket submitted! Redirecting to history...");
-      setTitle(""); setDescription(""); setPriority("medium");
+      setTitle(""); setDescription("");
       loadTickets();
       setTimeout(() => { setFormSuccess(""); setActiveTab("history"); }, 1500);
     } catch (err) {
@@ -345,23 +343,7 @@ export default function MyTickets() {
                 />
               </div>
 
-              <div className="cd-field">
-                <label>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4m0 4h.01"/></svg>
-                  Priority
-                </label>
-                <div className="cd-priority-selector">
-                  {["low", "medium", "high"].map(p => (
-                    <button
-                      key={p} type="button"
-                      className={`cd-priority-btn cd-priority-btn--${p} ${priority === p ? "cd-priority-btn--active" : ""}`}
-                      onClick={() => setPriority(p)}
-                    >
-                      {p.charAt(0).toUpperCase() + p.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
 
               <button type="submit" className="cd-btn cd-btn--primary cd-btn--lg" disabled={creating}>
                 {creating ? "Submitting..." : "Submit Ticket"}
@@ -482,22 +464,7 @@ export default function MyTickets() {
             </label>
           </div>
 
-          {/* Default priority when creating tickets */}
-          <div className="option-card">
-            <h3>Default Ticket Priority</h3>
-            <p>Pre-select this priority when you open the New Ticket form.</p>
-            <div className="segmented-control">
-              {["low", "medium", "high"].map(p => (
-                <button
-                  key={p} type="button"
-                  className={`segmented-button ${defaultPriority === p ? "segmented-button--active" : ""}`}
-                  onClick={() => { setDefaultPriority(p); setPriority(p); }}
-                >
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
+
 
           {/* Quick links */}
           <div className="option-card">
