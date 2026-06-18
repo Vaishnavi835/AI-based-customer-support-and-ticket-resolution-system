@@ -18,8 +18,8 @@ export const authAPI = {
    * Register a new account.
    * Returns { access_token, user_id, name, email, role }
    */
-  register: (name, email, password) =>
-    api.post("/auth/register", { name, email, password }),
+  register: (name, email, password, role = "customer") =>
+    api.post("/auth/register", { name, email, password, role }),
 
   /**
    * Login with email + password.

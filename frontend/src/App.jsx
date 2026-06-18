@@ -32,13 +32,14 @@ import MyTickets    from "./pages/MyTickets";
 import Profile      from "./pages/Profile";
 import AgentDashboard from "./pages/AgentDashboard";
 import Escalations from "./pages/Escalations";
+import TicketList from "./pages/TicketList";
+import KnowledgeBase from "./pages/KnowledgeBase";
+import UserManagement from "./pages/UserManagement";
 import TicketDetail from "./pages/TicketDetail";
 
 
 
 // Placeholder pages — you'll build these in Days 22-25
-const TicketList     = () => <PlaceholderPage title="All Tickets"      link="/dashboard" />;
-const KnowledgeBase  = () => <PlaceholderPage title="Knowledge Base"   link="/dashboard" />;
 const Unauthorized   = () => <PlaceholderPage title="403 — Access Denied" link="/" />;
 const NotFound       = () => <PlaceholderPage title="404 — Page Not Found" link="/" />;
 
@@ -47,16 +48,27 @@ function HomeRedirect() {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user)   return <Navigate to="/login" replace />;
-  return user.role === "customer"
-    ? <Navigate to="/my-tickets" replace />
-    : <Navigate to="/dashboard"  replace />;
+  if (user.role === "customer") return <Navigate to="/my-tickets" replace />;
+  if (user.role === "support_agent") return <Navigate to="/agent-dashboard" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
+import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
+
 function AppRoutes() {
+  const { user } = useAuth();
+  
+  // For public routes, we don't want the sidebar.
+  // We can either wrap protected routes or just conditionally render the sidebar.
+  // Since HomeRedirect is at "/", and /login is public, it's easier to put the layout inside a wrapper or just conditionally render Sidebar.
+  
   return (
-    <>
-      <Navbar />
-      <main className="main-content">
+    <div className={user ? "zd-layout" : ""}>
+      {user && <Sidebar />}
+      <main className={user ? "zd-main" : ""} style={{ backgroundColor: user ? '#F4F6F9' : 'inherit' }}>
+        {user && <TopBar />}
+        <div className={user ? "page-body" : ""}>
         <Routes>
           {/* Public routes */}
           <Route path="/login"    element={<Login />} />
@@ -72,11 +84,27 @@ function AppRoutes() {
               <MyTickets />
             </ProtectedRoute>
           } />
+          <Route path="/my-tickets/new" element={
+            <ProtectedRoute roles={["customer"]}>
+              <MyTickets />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-tickets/history" element={
+            <ProtectedRoute roles={["customer"]}>
+              <MyTickets />
+            </ProtectedRoute>
+          } />
 
           {/* Staff routes — admin + support_agent */}
           <Route path="/dashboard" element={
-            <ProtectedRoute roles={["admin", "support_agent"]}>
+            <ProtectedRoute roles={["admin"]}>
               <Dashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agent-dashboard" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <AgentDashboard />
             </ProtectedRoute>
           } />
 
@@ -99,6 +127,12 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/users" element={
+            <ProtectedRoute roles={["admin"]}>
+              <UserManagement />
+            </ProtectedRoute>
+          } />
+
           {/* Shared — any authenticated user can view a ticket */}
           <Route path="/tickets/:id" element={
             <ProtectedRoute>
@@ -113,19 +147,13 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
 
-          <Route path="/agent-dashboard" element={
-            <ProtectedRoute roles={["admin", "support_agent"]}>
-               <AgentDashboard />
-            </ProtectedRoute>
-          } />
-
-
           {/* Error pages */}
           <Route path="/unauthorized" element={<Unauthorized />} />
           <Route path="*"             element={<NotFound />}      />
         </Routes>
+        </div>
       </main>
-    </>
+    </div>
   );
 }
 

@@ -246,6 +246,14 @@
   margin: 0 auto;
   padding: 36px 28px;
 }
+[data-theme="slate-ivory"] .main-content:has(.cd-page) {
+  padding: 0;
+}
+[data-theme="slate-ivory"] .main-content:has(.register-shell),
+[data-theme="slate-ivory"] .main-content:has(.auth-page) {
+  padding: 0;
+  max-width: 100%;
+}
 
 /* ── Scrollbar ─────────────────────────────────── */
 [data-theme="slate-ivory"] ::-webkit-scrollbar { width: 6px; }

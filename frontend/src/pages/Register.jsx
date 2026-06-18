@@ -77,6 +77,7 @@ export default function Register() {
   const [name,     setName]     = useState("");
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
+  const [role,     setRole]     = useState("customer");
   const [error,    setError]    = useState("");
   const [loading,  setLoading]  = useState(false);
 
@@ -89,8 +90,8 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await register(name, email, password);
-      navigate("/my-tickets");
+      await register(name, email, password, role);
+      navigate("/");
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (Array.isArray(detail)) {
@@ -155,6 +156,20 @@ export default function Register() {
                 required
               />
               <div className="field-hint">8+ characters, with a number and a symbol</div>
+            </div>
+
+            <div className="field">
+              <label htmlFor="role">Role (Demo)</label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                style={{ padding: '12px 14px', borderRadius: '8px', border: '1.5px solid #E2DBCD', fontSize: '15px', outline: 'none', background: '#fff', color: '#1C2333', fontFamily: 'inherit' }}
+              >
+                <option value="customer">Customer</option>
+                <option value="support_agent">Support Agent</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
 
             <button type="submit" className="register-submit" disabled={loading}>

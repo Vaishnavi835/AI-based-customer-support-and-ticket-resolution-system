@@ -1,308 +1,196 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
+import {
+  Inbox, Clock, ShieldAlert, CheckCircle, Users, Star,
+  TrendingUp, RefreshCw, MoreHorizontal, ArrowUpRight, ArrowDownRight
+} from "lucide-react";
 
-/**
- * AnimatedCounter
- * ===============
- * A smooth count-up/count-down utility to animate statistics changes.
- */
-function AnimatedCounter({ value }) {
-  const [displayValue, setDisplayValue] = useState(value);
+const MOCK_ACTIVITY = [
+  { id: 1, action: "assigned", actor: "John M.", ticket: "#3311", time: "2m ago", color: "#3B82F6" },
+  { id: 2, action: "closed", actor: "Alice K.", ticket: "#3298", time: "14m ago", color: "#10B981" },
+  { id: 3, action: "replied to", actor: "Agent Sam", ticket: "#3305", time: "31m ago", color: "#6C63FF" },
+  { id: 4, action: "escalated", actor: "Bob R.", ticket: "#3287", time: "1h ago", color: "#EF4444" },
+  { id: 5, action: "resolved", actor: "Support AI", ticket: "#3274", time: "2h ago", color: "#10B981" },
+  { id: 6, action: "opened", actor: "Jane D.", ticket: "#3312", time: "3h ago", color: "#F59E0B" },
+];
 
-  useEffect(() => {
-    let start = displayValue;
-    const end = value;
-    if (start === end) return;
-
-    const duration = 400; // ms
-    const startTime = performance.now();
-
-    const updateCount = (now) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // Ease out quad
-      const easeProgress = progress * (2 - progress);
-      const current = Math.round(start + (end - start) * easeProgress);
-      
-      setDisplayValue(current);
-
-      if (progress < 1) {
-        requestAnimationFrame(updateCount);
-      }
-    };
-
-    requestAnimationFrame(updateCount);
-  }, [value]);
-
-  return <span>{displayValue}</span>;
-}
-
-/**
- * getStatsForRegion
- * ==================
- * Simulates region-specific stats based on dynamic API counts.
- */
-const getStatsForRegion = (baseStats, region) => {
-  if (!baseStats) return null;
-  if (region === "global") return baseStats;
-  
-  const factor = region === "na" ? 0.6 : 0.4;
-  return {
-    total: Math.max(1, Math.round(baseStats.total * factor)),
-    open: Math.max(0, Math.round(baseStats.open * factor)),
-    pending: Math.max(0, Math.round(baseStats.pending * factor)),
-    escalated: Math.max(0, Math.round(baseStats.escalated * factor)),
-    resolved: Math.max(0, Math.round(baseStats.resolved * factor)),
-    closed: Math.max(0, Math.round(baseStats.closed * factor)),
-    high_priority: Math.max(0, Math.round(baseStats.high_priority * factor))
-  };
-};
-
-export default function Dashboard() {
-  const [baseStats, setBaseStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  // Drawer States
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [region, setRegion] = useState("global");
-  const [autopilot, setAutopilot] = useState(true);
-  const [confidenceThreshold, setConfidenceThreshold] = useState(85);
-  
-  // Diagnostics States
-  const [diagnosticsRunning, setDiagnosticsRunning] = useState(false);
-  const [diagnosticsProgress, setDiagnosticsProgress] = useState(0);
-  const [diagnosticsLog, setDiagnosticsLog] = useState([]);
-
-  const { user } = useAuth();
-
-  useEffect(() => {
-    ticketsAPI.stats()
-      .then((res) => setBaseStats(res.data))
-      .catch(() => {
-        // Quiet fallback to mock data for presentation purposes if backend is offline
-        setBaseStats({
-          total: 154,
-          open: 42,
-          pending: 18,
-          escalated: 12,
-          resolved: 82,
-          closed: 64,
-          high_priority: 15
-        });
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  const runDiagnostics = () => {
-    setDiagnosticsRunning(true);
-    setDiagnosticsProgress(0);
-    setDiagnosticsLog(["[INFO] Initializing system diagnostics..."]);
-
-    const steps = [
-      { p: 20, log: "[INFO] Connecting to ticket database... OK" },
-      { p: 40, log: "[INFO] Connecting to knowledge base vector store... OK" },
-      { p: 60, log: "[INFO] Checking AI model status (Gemini Pro)... OK" },
-      { p: 80, log: "[INFO] Testing escalation queue webhook notifications... OK" },
-      { p: 100, log: "[SUCCESS] Diagnostics complete. All systems healthy." }
-    ];
-
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += 5;
-      if (currentProgress > 100) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setDiagnosticsRunning(false);
-        }, 1500);
-        return;
-      }
-
-      setDiagnosticsProgress(currentProgress);
-      
-      const step = steps.find(s => s.p === currentProgress);
-      if (step) {
-        setDiagnosticsLog(prev => [...prev, step.log]);
-      }
-    }, 100);
-  };
-
-  const activeStats = getStatsForRegion(baseStats, region);
-
+function StatCard({ icon: Icon, label, value, delta, color, bg }) {
+  const isUp = delta >= 0;
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Dashboard</h1>
-          <p>Welcome back, {user?.name}</p>
+    <div style={{
+      background: '#fff', borderRadius: '14px', padding: '20px',
+      border: '1px solid #E4E7EC', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+      display: 'flex', flexDirection: 'column', gap: '12px',
+      transition: 'box-shadow 0.2s', cursor: 'default'
+    }}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(15,23,42,0.1)'}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.06)'}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={22} color={color} />
         </div>
-        <button className="btn-configure" onClick={() => setDrawerOpen(true)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-          Configure
-        </button>
+        <span style={{
+          display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px', fontWeight: '600',
+          color: isUp ? '#10B981' : '#EF4444',
+          background: isUp ? '#F0FDF4' : '#FEF2F2', borderRadius: '6px', padding: '3px 7px'
+        }}>
+          {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />} {Math.abs(delta)}%
+        </span>
       </div>
-
-      {error && <div className="alert alert-error">{error}</div>}
-
-      {loading ? (
-        <p className="loading-text">Loading stats...</p>
-      ) : activeStats && (
-        <div className="stats-grid">
-          <StatCard label="Total"     value={activeStats.total}         color="default" />
-          <StatCard label="Open"      value={activeStats.open}          color="blue"    />
-          <StatCard label="Pending"   value={activeStats.pending}       color="yellow"  />
-          <StatCard label="Escalated" value={activeStats.escalated}     color="red"     />
-          <StatCard label="Resolved"  value={activeStats.resolved}      color="green"   />
-          <StatCard label="Closed"    value={activeStats.closed}        color="gray"    />
-          <StatCard label="High Priority" value={activeStats.high_priority} color="orange" />
-        </div>
-      )}
-
-      <div className="quick-links">
-        <h2>Quick Actions</h2>
-        <div className="links-grid">
-          <Link to="/tickets"          className="quick-link">All Tickets</Link>
-          <Link to="/escalations"      className="quick-link">Escalation Queue</Link>
-          <Link to="/tickets/search"   className="quick-link">Search Tickets</Link>
-          <Link to="/knowledge-base"   className="quick-link">Knowledge Base</Link>
-        </div>
-      </div>
-
-      {/* ── Sliding Options Drawer Overlay & Panel ─────────────────── */}
-      <div 
-        className={`drawer-overlay ${drawerOpen ? "drawer-overlay--open" : ""}`}
-        onClick={() => setDrawerOpen(false)}
-      />
-      
-      <div className={`drawer-panel ${drawerOpen ? "drawer-panel--open" : ""}`}>
-        <div className="drawer-header">
-          <h2>Dashboard Configuration</h2>
-          <button className="drawer-close" onClick={() => setDrawerOpen(false)}>×</button>
-        </div>
-        
-        <div className="drawer-content">
-          {/* Region filter */}
-          <div className="option-card">
-            <h3>Active Region Filter</h3>
-            <p>Select which region's statistics to display on your dashboard cards.</p>
-            <div className="segmented-control">
-              <button 
-                type="button"
-                className={`segmented-button ${region === "global" ? "segmented-button--active" : ""}`}
-                onClick={() => setRegion("global")}
-              >
-                Global
-              </button>
-              <button 
-                type="button"
-                className={`segmented-button ${region === "na" ? "segmented-button--active" : ""}`}
-                onClick={() => setRegion("na")}
-              >
-                N. America
-              </button>
-              <button 
-                type="button"
-                className={`segmented-button ${region === "eu" ? "segmented-button--active" : ""}`}
-                onClick={() => setRegion("eu")}
-              >
-                Europe
-              </button>
-            </div>
-          </div>
-
-          {/* AI Settings */}
-          <div className="option-card">
-            <h3>AI Auto-Resolution</h3>
-            <p>Adjust the threshold and direct auto-resolve options for customer tickets.</p>
-            
-            <label className="switch-label" style={{ marginBottom: '20px' }}>
-              <div className="switch-text-container">
-                <span className="switch-title">AI Auto-Pilot Mode</span>
-                <span className="switch-desc">Allow AI to directly resolve tickets</span>
-              </div>
-              <input 
-                type="checkbox" 
-                className="switch-input" 
-                checked={autopilot}
-                onChange={(e) => setAutopilot(e.target.checked)}
-              />
-              <span className="switch-slider" />
-            </label>
-
-            <div className="range-input-container">
-              <div className="range-header">
-                <span className="switch-title">Confidence Threshold</span>
-                <span className="range-val">{confidenceThreshold}%</span>
-              </div>
-              <input 
-                type="range" 
-                min="70" 
-                max="98" 
-                value={confidenceThreshold} 
-                onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
-                className="range-input"
-              />
-              <span className="switch-desc">Tickets below this confidence level will trigger human escalation.</span>
-            </div>
-          </div>
-
-          {/* Diagnostics Tools */}
-          <div className="option-card">
-            <h3>Diagnostics & Logs</h3>
-            <p>Scan system endpoints, DB connections, and vector stores.</p>
-            <button 
-              type="button" 
-              onClick={runDiagnostics} 
-              className="register-submit" 
-              style={{ marginTop: 0, padding: '10px' }}
-              disabled={diagnosticsRunning}
-            >
-              {diagnosticsRunning ? `Scanning (${diagnosticsProgress}%)` : "Run Diagnostics"}
-            </button>
-
-            {diagnosticsRunning && (
-              <div style={{ marginTop: '14px' }}>
-                <div style={{ height: '6px', background: '#E2DBCD', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ width: `${diagnosticsProgress}%`, height: '100%', background: '#C4683D', transition: 'width 0.1s linear' }} />
-                </div>
-                <div className="diagnostics-log">
-                  {diagnosticsLog.map((log, index) => (
-                    <div key={index}>{log}</div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="drawer-footer">
-          <button 
-            type="button" 
-            className="register-submit" 
-            style={{ marginTop: 0 }} 
-            onClick={() => setDrawerOpen(false)}
-          >
-            Apply Configurations
-          </button>
-        </div>
+      <div>
+        <div style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>{value}</div>
+        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '2px', fontWeight: '500' }}>{label}</div>
       </div>
     </div>
   );
 }
 
-function StatCard({ label, value, color }) {
+function MiniBar({ label, value, max, color }) {
+  const pct = Math.round((value / max) * 100);
   return (
-    <div className={`stat-card stat-card--${color}`}>
-      <span className="stat-value">
-        <AnimatedCounter value={value} />
-      </span>
-      <span className="stat-label">{label}</span>
+    <div style={{ marginBottom: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+        <span style={{ color: '#374151', fontWeight: '600' }}>{label}</span>
+        <span style={{ color: '#6B7280', fontWeight: '500' }}>{value} <span style={{ fontSize: '11px', color: '#9CA3AF' }}>({pct}%)</span></span>
+      </div>
+      <div style={{ height: '8px', background: '#F3F4F6', borderRadius: '99px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '99px', transition: 'width 0.6s ease' }} />
+      </div>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("inboxes");
+
+  const loadStats = () => {
+    setLoading(true);
+    ticketsAPI.stats()
+      .then((res) => setStats(res.data))
+      .catch(() => setStats({ total: 154, open: 42, pending: 18, escalated: 12, resolved: 82, closed: 64, high_priority: 15 }))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadStats(); }, []);
+
+  const total = stats?.total || 0;
+
+  return (
+    <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+      {/* ── Header ──────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.4px' }}>
+            Good morning, {user?.name?.split(' ')[0]} 👋
+          </h2>
+          <p style={{ fontSize: '14px', color: '#64748B', marginTop: '2px' }}>
+            Here's what's happening across your support platform today.
+          </p>
+        </div>
+        <button onClick={loadStats} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', border: '1.5px solid #E4E7EC', borderRadius: '10px', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#374151', transition: 'border-color 0.15s' }}>
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+
+      {/* ── KPI Stat Cards ──────────────────────────────── */}
+      {!loading && stats && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+          <StatCard icon={Inbox}       label="Open Tickets"        value={stats.open}         delta={+8}  color="#475569" bg="#F1F5F9" />
+          <StatCard icon={Clock}       label="Pending"             value={stats.pending}      delta={-3}  color="#F59E0B" bg="#FFFBEB" />
+          <StatCard icon={ShieldAlert} label="Escalated"           value={stats.escalated}    delta={+2}  color="#EF4444" bg="#FEF2F2" />
+          <StatCard icon={CheckCircle} label="Resolved Today"      value={stats.resolved}     delta={+14} color="#10B981" bg="#ECFDF5" />
+          <StatCard icon={Users}       label="Agents Online"       value={7}                  delta={0}   color="#6C63FF" bg="#EEEDFF" />
+          <StatCard icon={Star}        label="Satisfaction"        value="94%"                delta={+1}  color="#F59E0B" bg="#FFFBEB" />
+        </div>
+      )}
+
+      {/* ── Two-column section ──────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+
+        {/* Ticket Status Distribution */}
+        <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '22px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0F172A' }}>Ticket Status Chart</h3>
+            <TrendingUp size={18} color="#9CA3AF" />
+          </div>
+          {stats && (
+            <>
+              <MiniBar label="Open"      value={stats.open}      max={total} color="#3B82F6" />
+              <MiniBar label="Pending"   value={stats.pending}   max={total} color="#F59E0B" />
+              <MiniBar label="Escalated" value={stats.escalated} max={total} color="#EF4444" />
+              <MiniBar label="Resolved"  value={stats.resolved}  max={total} color="#10B981" />
+              <MiniBar label="Closed"    value={stats.closed}    max={total} color="#94A3B8" />
+            </>
+          )}
+        </div>
+
+        {/* SLA Performance */}
+        <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '22px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0F172A' }}>SLA Performance</h3>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF' }}><MoreHorizontal size={18} /></button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {[
+              { label: 'First Response Time', value: '26m 50s', status: 'good', pct: 80 },
+              { label: 'Resolution Time', value: '4h 12m', status: 'warn', pct: 55 },
+              { label: 'Customer Satisfaction', value: '94%', status: 'good', pct: 94 },
+              { label: 'SLA Miss Rate', value: '8%', status: 'danger', pct: 8 },
+            ].map(item => (
+              <div key={item.label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
+                  <span style={{ color: '#374151', fontWeight: '600' }}>{item.label}</span>
+                  <span style={{ fontWeight: '700', color: item.status === 'good' ? '#10B981' : item.status === 'warn' ? '#F59E0B' : '#EF4444' }}>{item.value}</span>
+                </div>
+                <div style={{ height: '6px', background: '#F3F4F6', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: '99px', transition: 'width 0.6s ease',
+                    width: `${item.pct}%`,
+                    background: item.status === 'good' ? '#10B981' : item.status === 'warn' ? '#F59E0B' : '#EF4444'
+                  }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── Recent Activity ─────────────────────────────── */}
+      <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '22px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0F172A' }}>Recent Activity</h3>
+          <span style={{ fontSize: '12px', color: '#6C63FF', fontWeight: '600', cursor: 'pointer' }}>View all</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {MOCK_ACTIVITY.map(item => (
+            <div key={item.id} style={{
+              display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 12px',
+              borderRadius: '10px', transition: 'background 0.1s', cursor: 'pointer'
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = '#F9FAFB'}
+              onMouseLeave={e => e.currentTarget.style.background = ''}
+            >
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: item.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.color, fontWeight: '800', fontSize: '13px', flexShrink: 0 }}>
+                {item.actor.charAt(0)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: '14px', color: '#0F172A', fontWeight: '600' }}>{item.actor} </span>
+                <span style={{ fontSize: '14px', color: '#64748B' }}>{item.action} </span>
+                <span style={{ fontSize: '14px', color: '#6C63FF', fontWeight: '600' }}>Ticket {item.ticket}</span>
+              </div>
+              <span style={{ fontSize: '12px', color: '#9CA3AF', flexShrink: 0 }}>{item.time}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
