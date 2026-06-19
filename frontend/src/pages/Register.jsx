@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Eye, EyeOff, Sparkles } from "lucide-react";
@@ -188,13 +188,15 @@ function RegisterDemoSection() {
 }
 
 export default function Register() {
-  const [name,         setName]         = useState("");
-  const [email,        setEmail]        = useState("");
-  const [password,     setPassword]     = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [role,         setRole]         = useState("customer");
-  const [error,        setError]        = useState("");
-  const [loading,      setLoading]      = useState(false);
+  const [name,            setName]            = useState("");
+  const [email,           setEmail]           = useState("");
+  const [password,        setPassword]        = useState("");
+  const [showPassword,    setShowPassword]    = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const role = "customer";
+  const [error,           setError]           = useState("");
+  const [loading,         setLoading]         = useState(false);
 
   const { register } = useAuth();
   const navigate     = useNavigate();
@@ -202,6 +204,12 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -321,18 +329,30 @@ export default function Register() {
             </div>
 
             <div className="field">
-              <label htmlFor="role">Account Type</label>
-              <select
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                style={{ padding: '12px 14px', borderRadius: '8px', border: '1.5px solid #E2DBCD', fontSize: '15px', outline: 'none', background: '#fff', color: '#1C2333', fontFamily: 'inherit', width: '100%' }}
-              >
-                <option value="customer">Customer</option>
-                <option value="support_agent">Support Agent</option>
-                <option value="admin">Admin</option>
-              </select>
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <div className="password-input-wrapper">
+                <input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••••"
+                  required
+                  style={{ width: '100%' }}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  tabIndex="-1"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
+
+
 
             <button type="submit" className="register-submit" disabled={loading} style={{ marginTop: '16px' }}>
               {loading ? "Creating account..." : "Create account"}

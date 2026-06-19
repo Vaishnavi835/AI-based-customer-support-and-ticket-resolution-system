@@ -2,10 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
+import { useWebSocketEvent } from "../context/WebSocketContext";
 import { 
   PlusCircle, Ticket, Activity, CheckCircle, 
   Clock, Settings, FileText, ChevronRight, Inbox, MailOpen,
-  Search, Filter, Sparkles, Zap, BookOpen
+  Search, Filter, Sparkles, Zap, BookOpen,
+  TrendingUp, TrendingDown, CreditCard, Cpu, User, UserCircle
 } from "lucide-react";
 
 /* ── Color maps ────────────────────────────────────────────────── */
@@ -23,12 +25,12 @@ const PRIORITY_COLORS = {
   high:   "red",
 };
 
-const getCategoryEmoji = (category) => {
+const getCategoryIcon = (category, size = 18) => {
   const cat = category?.toLowerCase();
-  if (cat?.includes("bill") || cat?.includes("pay")) return "💳";
-  if (cat?.includes("tech") || cat?.includes("api") || cat?.includes("server") || cat?.includes("bug")) return "⚙";
-  if (cat?.includes("account") || cat?.includes("profile") || cat?.includes("login") || cat?.includes("user")) return "👤";
-  return "💬";
+  if (cat?.includes("bill") || cat?.includes("pay")) return <CreditCard size={size} style={{ color: '#3B82F6' }} />;
+  if (cat?.includes("tech") || cat?.includes("api") || cat?.includes("server") || cat?.includes("bug")) return <Cpu size={size} style={{ color: '#10B981' }} />;
+  if (cat?.includes("account") || cat?.includes("profile") || cat?.includes("login") || cat?.includes("user")) return <User size={size} style={{ color: '#F59E0B' }} />;
+  return <FileText size={size} style={{ color: '#6366F1' }} />;
 };
 
 const getAIConfidence = (ticket) => {
@@ -91,6 +93,25 @@ export default function MyTickets() {
 
   useEffect(() => { loadTickets(); }, []);
 
+  // Listen to live ticket created events (e.g. if created from another session/tab)
+  useWebSocketEvent("ticket_created", (data) => {
+    if (data.ticket && data.ticket.user_id === user?.id) {
+      setTickets((prev) => {
+        if (prev.some((t) => t.id === data.ticket.id)) return prev;
+        return [data.ticket, ...prev];
+      });
+    }
+  });
+
+  // Listen to live ticket updated events (e.g. status changes, priority changes)
+  useWebSocketEvent("ticket_updated", (data) => {
+    if (data.ticket && data.ticket.user_id === user?.id) {
+      setTickets((prev) =>
+        prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
+      );
+    }
+  });
+
   const stats = {
     total:    tickets.length,
     open:     tickets.filter(t => t.status === "open").length,
@@ -152,6 +173,14 @@ export default function MyTickets() {
       {activeTab === "dashboard" && (
         <div className="cd-fade-in" style={{ padding: '32px' }}>
           
+          {/* Title Header */}
+          <div style={{ marginBottom: '24px' }}>
+            <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dashboard</h1>
+            <p style={{ margin: '4px 0 0 0', fontSize: '14.5px', color: '#64748B' }}>
+              Manage and track your support requests
+            </p>
+          </div>
+          
           {/* Hero section */}
           <div className="modern-hero" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #6D28D9 100%)', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.15)', borderRadius: '16px' }}>
             <div className="modern-hero__content">
@@ -172,6 +201,12 @@ export default function MyTickets() {
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.total}</span>
                 <span className="modern-stat-card__label">Total</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                    <TrendingUp size={10} /> +5%
+                  </span>
+                  <span>this week</span>
+                </div>
               </div>
             </div>
             <div className="modern-stat-card" style={{ borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
@@ -181,6 +216,12 @@ export default function MyTickets() {
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.open}</span>
                 <span className="modern-stat-card__label">Open</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                    <TrendingDown size={10} /> -20%
+                  </span>
+                  <span>vs yesterday</span>
+                </div>
               </div>
             </div>
             <div className="modern-stat-card" style={{ borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
@@ -190,6 +231,12 @@ export default function MyTickets() {
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.inprog}</span>
                 <span className="modern-stat-card__label">Pending</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#EF4444', background: '#FEF2F2', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                    <TrendingUp size={10} /> +2%
+                  </span>
+                  <span>vs yesterday</span>
+                </div>
               </div>
             </div>
             <div className="modern-stat-card" style={{ borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
@@ -199,6 +246,12 @@ export default function MyTickets() {
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.resolved}</span>
                 <span className="modern-stat-card__label">Resolved</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                    <TrendingUp size={10} /> +12%
+                  </span>
+                  <span>this week</span>
+                </div>
               </div>
             </div>
           </div>
@@ -215,12 +268,15 @@ export default function MyTickets() {
 
               {loading && <p>Loading tickets...</p>}
               {!loading && tickets.length === 0 && (
-                <div className="modern-empty-state">
-                  <div className="modern-empty-state__icon">
-                    <Inbox size={32} />
+                <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px dashed #CBD5E1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
+                  <div className="modern-empty-state__icon" style={{ background: '#EEEDFF', color: '#6366F1', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Inbox size={26} />
                   </div>
-                  <h3>No tickets found</h3>
-                  <p>Create your first support request.</p>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', margin: 0 }}>🎉 You're all caught up!</h3>
+                  <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '280px', lineHeight: '1.5' }}>No active support tickets. Create a new ticket if you need help.</p>
+                  <button className="cd-btn cd-btn--primary" onClick={() => navigate("/my-tickets/new")} style={{ marginTop: '8px' }}>
+                    <PlusCircle size={16} /> Create Ticket
+                  </button>
                 </div>
               )}
 
@@ -237,8 +293,8 @@ export default function MyTickets() {
                       <Link to={`/tickets/${ticket.id}`} key={ticket.id} className="rich-ticket-card">
                         <div className="rich-ticket-card__header">
                           <div className="rich-ticket-card__title-row">
-                            <span className="rich-ticket-card__emoji" role="img" aria-label="category">
-                              {getCategoryEmoji(ticket.category)}
+                            <span className="rich-ticket-card__emoji" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#F1F5F9', borderRadius: '8px' }}>
+                              {getCategoryIcon(ticket.category)}
                             </span>
                             <div>
                               <div className="rich-ticket-card__title">{ticket.title}</div>
@@ -334,21 +390,21 @@ export default function MyTickets() {
                 </div>
                 <div className="activity-feed-list">
                   <div className="activity-feed-item">
-                    <div className="activity-feed-dot" />
+                    <div className="activity-feed-dot" style={{ color: '#6366F1' }} />
                     <div>
                       <strong>AI classified</strong> ticket #T-001 as High Priority
                     </div>
                     <span className="activity-feed-time">2h ago</span>
                   </div>
                   <div className="activity-feed-item">
-                    <div className="activity-feed-dot" style={{ backgroundColor: '#10B981' }} />
+                    <div className="activity-feed-dot" style={{ color: '#10B981' }} />
                     <div>
                       <strong>AI resolved</strong> billing query dynamically
                     </div>
                     <span className="activity-feed-time">4h ago</span>
                   </div>
                   <div className="activity-feed-item">
-                    <div className="activity-feed-dot" style={{ backgroundColor: '#F59E0B' }} />
+                    <div className="activity-feed-dot" style={{ color: '#F59E0B' }} />
                     <div>
                       Auto-routing mapped queue to Technical Portal
                     </div>
@@ -638,18 +694,14 @@ export default function MyTickets() {
               {loading && <p className="loading-text">Loading tickets...</p>}
 
               {!loading && filtered.length === 0 && (
-                <div className="modern-empty-state">
-                  <div className="modern-empty-state__icon">
-                    <Inbox size={32} />
+                <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px dashed #CBD5E1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
+                  <div className="modern-empty-state__icon" style={{ background: '#EEEDFF', color: '#6366F1', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Inbox size={26} />
                   </div>
-                  <h3>📭 No tickets found</h3>
-                  <p>Create your first support request or adjust your filters.</p>
-                  <button 
-                    onClick={() => navigate("/my-tickets/new")} 
-                    className="cd-btn cd-btn--primary" 
-                    style={{ marginTop: '16px', display: 'inline-flex', marginLeft: 'auto', marginRight: 'auto' }}
-                  >
-                    <PlusCircle size={16} style={{ marginRight: '8px' }} /> Create Ticket
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', margin: 0 }}>🎉 No tickets found</h3>
+                  <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '280px', lineHeight: '1.5' }}>Create your first support request or adjust your filters.</p>
+                  <button className="cd-btn cd-btn--primary" onClick={() => navigate("/my-tickets/new")} style={{ marginTop: '8px' }}>
+                    <PlusCircle size={16} /> Create Ticket
                   </button>
                 </div>
               )}
@@ -667,8 +719,8 @@ export default function MyTickets() {
                       <Link to={`/tickets/${ticket.id}`} key={ticket.id} className="rich-ticket-card">
                         <div className="rich-ticket-card__header">
                           <div className="rich-ticket-card__title-row">
-                            <span className="rich-ticket-card__emoji" role="img" aria-label="category">
-                              {getCategoryEmoji(ticket.category)}
+                            <span className="rich-ticket-card__emoji" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#F1F5F9', borderRadius: '8px' }}>
+                              {getCategoryIcon(ticket.category)}
                             </span>
                             <div>
                               <div className="rich-ticket-card__title">{ticket.title}</div>

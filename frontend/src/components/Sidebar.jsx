@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, Users, BookOpen, BarChart3,
   Settings, LogOut, ShieldAlert, PlusCircle, ChevronRight,
@@ -7,10 +7,31 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const panelRef = useRef(null);
+  const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, height: 0, opacity: 0 });
+
+  useEffect(() => {
+    if (panelRef.current) {
+      const timer = setTimeout(() => {
+        const activeEl = panelRef.current.querySelector('.zd-panel__link.active');
+        if (activeEl) {
+          setIndicatorStyle({
+            top: activeEl.offsetTop,
+            height: activeEl.offsetHeight,
+            opacity: 1
+          });
+        } else {
+          setIndicatorStyle(prev => ({ ...prev, opacity: 0 }));
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname, user?.role]);
 
   const isAgent = user?.role === 'support_agent';
   const isAdmin = user?.role === 'admin';
@@ -39,7 +60,7 @@ export default function Sidebar() {
       ];
 
   return (
-    <div className="zd-shell">
+    <div className={`zd-shell ${collapsed ? 'zd-shell--collapsed' : ''}`}>
       {/* ── Icon Rail ─────────────────────────────────────── */}
       <div className="zd-rail">
         {/* Logo */}
@@ -102,10 +123,26 @@ export default function Sidebar() {
       )}
 
       {/* ── Secondary Panel (context nav) ─────────────────── */}
-      <div className="zd-panel">
-        <div className="zd-panel__brand">
-          {isCustomer ? 'Support' : isAgent ? 'Inbox' : 'Admin'}
+      <div className="zd-panel" ref={panelRef} style={{ position: 'relative' }}>
+        <div className="zd-panel__brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: '#818CF8', fontSize: '18px' }}>✦</span>
+          <span>SupportAI</span>
         </div>
+
+        {/* Sliding active background indicator */}
+        <div className="zd-panel__indicator" style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          height: `${indicatorStyle.height}px`,
+          top: `${indicatorStyle.top}px`,
+          background: 'rgba(99, 102, 241, 0.12)',
+          borderLeft: '3px solid #6366F1',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          pointerEvents: 'none',
+          opacity: indicatorStyle.opacity,
+          zIndex: 0
+        }} />
 
         {isCustomer && (
           <>

@@ -17,6 +17,7 @@
  *   *                     → 404 page
  */
 
+import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./components/ThemeSwitcher";
@@ -58,16 +59,22 @@ import TopBar from "./components/TopBar";
 
 function AppRoutes() {
   const { user } = useAuth();
-  
-  // For public routes, we don't want the sidebar.
-  // We can either wrap protected routes or just conditionally render the sidebar.
-  // Since HomeRedirect is at "/", and /login is public, it's easier to put the layout inside a wrapper or just conditionally render Sidebar.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem("sidebar-collapsed") === "true"
+  );
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      localStorage.setItem("sidebar-collapsed", !prev);
+      return !prev;
+    });
+  };
   
   return (
     <div className={user ? "zd-layout" : ""}>
-      {user && <Sidebar />}
-      <main className={user ? "zd-main" : ""} style={{ backgroundColor: user ? '#F4F6F9' : 'inherit' }}>
-        {user && <TopBar />}
+      {user && <Sidebar collapsed={sidebarCollapsed} />}
+      <main className={user ? "zd-main" : ""} style={{ backgroundColor: user ? '#F8FAFC' : 'inherit' }}>
+        {user && <TopBar onToggleSidebar={toggleSidebar} />}
         <div className={user ? "page-body" : ""}>
         <Routes>
           {/* Public routes */}
@@ -157,12 +164,16 @@ function AppRoutes() {
   );
 }
 
+import { WebSocketProvider } from "./context/WebSocketContext";
+
 export default function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <AppRoutes />
+          <WebSocketProvider>
+            <AppRoutes />
+          </WebSocketProvider>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

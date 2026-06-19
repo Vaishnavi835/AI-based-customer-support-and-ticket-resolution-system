@@ -22,10 +22,18 @@ function StatCard({ icon: Icon, label, value, delta, color, bg }) {
       background: '#fff', borderRadius: '14px', padding: '20px',
       border: '1px solid #E4E7EC', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
       display: 'flex', flexDirection: 'column', gap: '12px',
-      transition: 'box-shadow 0.2s', cursor: 'default'
+      transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s, border-color 0.25s', cursor: 'default'
     }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(15,23,42,0.1)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.06)'}
+      onMouseEnter={e => {
+        e.currentTarget.style.transform = 'translateY(-3.5px)';
+        e.currentTarget.style.boxShadow = '0 12px 24px rgba(15,23,42,0.07), 0 4px 8px rgba(15,23,42,0.03)';
+        e.currentTarget.style.borderColor = '#6366F1';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = 'none';
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.06)';
+        e.currentTarget.style.borderColor = '#E4E7EC';
+      }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -86,11 +94,9 @@ export default function Dashboard() {
       {/* ── Header ──────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.4px' }}>
-            Good morning, {user?.name?.split(' ')[0]} 👋
-          </h2>
-          <p style={{ fontSize: '14px', color: '#64748B', marginTop: '2px' }}>
-            Here's what's happening across your support platform today.
+          <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dashboard</h1>
+          <p style={{ margin: '4px 0 0 0', fontSize: '14.5px', color: '#64748B' }}>
+            Good morning, {user?.name?.split(' ')[0]}! Here's what's happening across your support platform today.
           </p>
         </div>
         <button onClick={loadStats} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', border: '1.5px solid #E4E7EC', borderRadius: '10px', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#374151', transition: 'border-color 0.15s' }}>

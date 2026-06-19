@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { Ticket, Inbox, ChevronRight, Filter, Search } from "lucide-react";
+import { useWebSocketEvent } from "../context/WebSocketContext";
 
 const STATUS_CONFIG = {
   open:      { color: "#475569", bg: "#F1F5F9", label: "Open" },
@@ -36,6 +37,7 @@ function PriorityPill({ priority }) {
 }
 
 export default function TicketList() {
+  const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -54,6 +56,25 @@ export default function TicketList() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Listen to live ticket created events (e.g. if created by any customer)
+  useWebSocketEvent("ticket_created", (data) => {
+    if (data.ticket) {
+      setTickets((prev) => {
+        if (prev.some((t) => t.id === data.ticket.id)) return prev;
+        return [data.ticket, ...prev];
+      });
+    }
+  });
+
+  // Listen to live ticket updated events (e.g. status changes, priority changes)
+  useWebSocketEvent("ticket_updated", (data) => {
+    if (data.ticket) {
+      setTickets((prev) =>
+        prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
+      );
+    }
+  });
 
   const filtered = tickets.filter(t => {
     const matchSearch = t.title?.toLowerCase().includes(search.toLowerCase()) || t.id?.toString().includes(search);
@@ -138,9 +159,7 @@ export default function TicketList() {
                 No tickets found.
               </td></tr>
             ) : filtered.map(ticket => (
-              <tr key={ticket.id} style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s', cursor: 'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#FAFBFF'}
-                onMouseLeave={e => e.currentTarget.style.background = ''}>
+              <tr key={ticket.id} className="clickable-row" onClick={() => navigate(`/tickets/${ticket.id}`)} style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s' }}>
                 <td style={{ padding: '14px 20px', fontSize: '12px', color: '#9CA3AF', fontFamily: 'monospace' }}>
                   #{String(ticket.id).slice(-6)}
                 </td>

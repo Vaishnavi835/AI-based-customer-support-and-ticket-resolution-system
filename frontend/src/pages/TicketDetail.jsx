@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ticketsAPI, chatAPI, escalationAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
+import { useWebSocketEvent } from "../context/WebSocketContext";
 import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Sparkles, User, BookOpen } from "lucide-react";
 
 /**
@@ -69,6 +70,20 @@ export default function TicketDetail() {
   };
 
   useEffect(() => { loadData(); }, [id]);
+
+  // Listen to live chat message/interaction updates
+  useWebSocketEvent("chat_updated", (data) => {
+    if (data.ticket_id === id) {
+      loadData();
+    }
+  });
+
+  // Listen to live ticket updates (status, priority, etc.)
+  useWebSocketEvent("ticket_updated", (data) => {
+    if (data.ticket && data.ticket.id === id) {
+      loadData();
+    }
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -173,12 +188,37 @@ export default function TicketDetail() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#0F172A', margin: 0 }}>{ticket.title}</h2>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', fontSize: '13px', color: '#64748B' }}>
-              <span>{ticket.id || 'TKT-000'}</span>
+            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.3px' }}>{ticket.title}</h2>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', fontSize: '13px', color: '#64748B' }}>
+              <span style={{ fontWeight: '700', color: '#334155' }}>#TKT-{ticket.id.slice(0, 8).toUpperCase()}</span>
               <span>•</span>
-              <span className={`badge badge--${ticket.status === 'open' ? 'blue' : ticket.status === 'escalated' ? 'red' : ticket.status === 'resolved' ? 'green' : 'yellow'}`}>{ticket.status}</span>
-              <span className={`badge badge--${ticket.priority === 'high' ? 'red' : ticket.priority === 'low' ? 'green' : 'yellow'}`}>{ticket.priority}</span>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: '700',
+                textTransform: 'capitalize',
+                background: ticket.status === 'escalated' ? '#FEE2E2' : ticket.status === 'open' ? '#DBEAFE' : ticket.status === 'resolved' ? '#D1FAE5' : '#FEF3C7',
+                color: ticket.status === 'escalated' ? '#EF4444' : ticket.status === 'open' ? '#3B82F6' : ticket.status === 'resolved' ? '#10B981' : '#F59E0B'
+              }}>
+                {ticket.status}
+              </span>
+              <span>•</span>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: '700',
+                textTransform: 'capitalize',
+                background: ticket.priority === 'high' ? '#FEE2E2' : ticket.priority === 'low' ? '#F3F4F6' : '#FEF3C7',
+                color: ticket.priority === 'high' ? '#EF4444' : ticket.priority === 'low' ? '#6B7280' : '#F59E0B'
+              }}>
+                {ticket.priority} Priority
+              </span>
             </div>
           </div>
         </div>
@@ -255,43 +295,80 @@ export default function TicketDetail() {
               const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
 
               return (
-                <div key={msg.id} className={rowClass}>
-                  <div className="chat-avatar-wrapper">
-                    <div className={avatarClass}>
-                      {avatarIcon || avatarInitials}
+                <div key={msg.id} style={{ width: '100%' }}>
+                  {/* Clean Message Timeline centered divider */}
+                  {timeStr && (
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', margin: '24px 0 16px 0' }}>
+                      <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
+                      <span style={{ padding: '0 16px', fontSize: '11px', color: '#94A3B8', fontWeight: '700', letterSpacing: '0.05em' }}>{timeStr}</span>
+                      <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
                     </div>
-                  </div>
-                  
-                  <div style={{ display: "flex", flexDirection: "column", maxWidth: "70%", alignItems: isSelf ? "flex-end" : "flex-start" }}>
-                    <div className={`chat-meta ${isSelf ? "chat-meta--self" : ""} ${isAi ? "chat-meta--ai" : ""}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span>{isSelf ? "You" : isAi ? "AI Assistant" : isAgent ? "Support Agent" : "Customer"}</span>
-                      <span className="chat-meta-time">{timeStr}</span>
-                      {isAi && msg.rag_used && (
-                        <span style={{ fontSize: '10px', background: '#F3E8FF', color: '#6D28D9', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
-                          ✦ AI-Powered
-                        </span>
-                      )}
+                  )}
+
+                  <div className={rowClass}>
+                    <div className="chat-avatar-wrapper">
+                      <div className={avatarClass}>
+                        {avatarIcon || avatarInitials}
+                      </div>
                     </div>
                     
-                    <div className={bubbleClass} style={{ width: 'fit-content' }}>
-                      {isAi && isLastMessage && lastResponseToType === msg.content ? (
-                        <TypewriterText 
-                          text={msg.content} 
-                          onComplete={() => {
-                            setLastResponseToType(null);
-                            scrollToBottom();
-                          }} 
-                        />
-                      ) : (
-                        <span>{msg.content}</span>
-                      )}
-                      
-                      {isAi && msg.rag_used && (
-                        <div className="chat-citation-box">
-                          <BookOpen size={12} />
-                          <span>Knowledge Base Policy referenced</span>
+                    <div style={{ display: "flex", flexDirection: "column", maxWidth: "85%", alignItems: isSelf ? "flex-end" : "flex-start", width: isAi ? '100%' : 'auto' }}>
+                      {!isAi && (
+                        <div className={`chat-meta ${isSelf ? "chat-meta--self" : ""}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>{isSelf ? "You" : isAgent ? "Support Agent" : "Customer"}</span>
                         </div>
                       )}
+                      
+                      <div 
+                        className={bubbleClass} 
+                        style={isAi ? {
+                          width: '100%',
+                          background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)',
+                          border: '1.5px solid #E9D5FF',
+                          borderRadius: '16px',
+                          boxShadow: '0 4px 12px rgba(139, 92, 246, 0.05)',
+                          padding: '16px 20px',
+                          position: 'relative'
+                        } : { width: 'fit-content' }}
+                      >
+                        {isAi ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%', textAlign: 'left' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '13px', color: '#6B21A8' }}>
+                              <span>🤖 AI Assistant</span>
+                            </div>
+                            <div style={{ height: '1px', background: '#E9D5FF', margin: '4px 0' }} />
+                            <div style={{ fontSize: '14.5px', color: '#4C1D95', lineHeight: '1.5' }}>
+                              {isLastMessage && lastResponseToType === msg.content ? (
+                                <TypewriterText 
+                                  text={msg.content} 
+                                  onComplete={() => {
+                                    setLastResponseToType(null);
+                                    scrollToBottom();
+                                  }} 
+                                />
+                              ) : (
+                                <span>{msg.content}</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span>{msg.content}</span>
+                        )}
+                        
+                        {isAi && msg.rag_used && (
+                          <div style={{
+                            marginTop: '12px', padding: '12px', background: '#fff', border: '1.5px solid #E9D5FF',
+                            borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
+                            boxShadow: '0 1px 2px rgba(15,23,42,0.02)', maxWidth: '280px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#7C3AED', fontWeight: '700' }}>
+                              📚 Source Used
+                            </div>
+                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#1E293B' }}>Refund Policy v2.1</div>
+                            <div style={{ fontSize: '11px', color: '#94A3B8' }}>Last Updated: 2 days ago</div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -390,30 +467,59 @@ export default function TicketDetail() {
 
           {/* Reply Input Box */}
           {ticket.status !== 'resolved' && ticket.status !== 'closed' ? (
-            <div style={{ padding: '24px 32px', background: '#fff', borderTop: '1px solid #E2E8F0', flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', background: '#F8FAFC', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder={user.role === 'customer' ? "Reply to support..." : "Type your response to the customer..."}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  style={{ flex: 1, padding: '8px', border: 'none', background: 'transparent', resize: 'none', fontSize: '15px', outline: 'none', minHeight: '44px', maxHeight: '120px' }}
-                  rows={1}
-                />
-                <button 
-                  onClick={handleSend} 
-                  disabled={sending || !message.trim()} 
-                  className="cd-btn cd-btn--primary"
-                  style={{ padding: '10px 16px', borderRadius: '8px', flexShrink: 0 }}
-                >
-                  {sending ? <Clock size={18} className="spinner" /> : <Send size={18} />}
-                  <span style={{ marginLeft: '8px' }}>Send</span>
-                </button>
+            <div style={{ padding: '20px 32px', background: '#fff', borderTop: '1px solid #E2E8F0', flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#F8FAFC', padding: '8px 16px', borderRadius: '12px', border: '1.5px solid #E2E8F0', transition: 'all 0.2s' }}
+                     onFocus={(e) => e.currentTarget.style.borderColor = '#6366F1'}
+                     onBlur={(e) => e.currentTarget.style.borderColor = '#E2E8F0'}>
+                  
+                  {/* Attachment Button */}
+                  <button 
+                    type="button" 
+                    title="Attach file" 
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', display: 'flex', alignItems: 'center', padding: '4px' }}
+                    onClick={() => alert("Attachment feature coming soon!")}
+                  >
+                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>📎</span>
+                  </button>
+
+                  {/* Emoji Button */}
+                  <button 
+                    type="button" 
+                    title="Insert emoji" 
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', display: 'flex', alignItems: 'center', padding: '4px' }}
+                    onClick={() => alert("Emoji feature coming soon!")}
+                  >
+                    <span style={{ fontSize: '18px' }}>😊</span>
+                  </button>
+
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder={user.role === 'customer' ? "Reply to support..." : "Type your response to the customer..."}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                    style={{ flex: 1, padding: '8px 4px', border: 'none', background: 'transparent', resize: 'none', fontSize: '14.5px', outline: 'none', minHeight: '36px', maxHeight: '120px', color: '#0F172A', fontFamily: 'inherit' }}
+                    rows={1}
+                  />
+
+                  <button 
+                    onClick={handleSend} 
+                    disabled={sending || !message.trim()} 
+                    className="cd-btn cd-btn--primary"
+                    style={{ padding: '8px 16px', borderRadius: '8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', background: '#6366F1', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    {sending ? <Clock size={16} className="spinner" /> : <Send size={16} />}
+                    <span>Send</span>
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: '#94A3B8', paddingLeft: '8px' }}>
+                  Press <strong style={{ color: '#64748B' }}>Enter</strong> to send • <strong style={{ color: '#64748B' }}>Shift + Enter</strong> for a new line
+                </div>
               </div>
             </div>
           ) : (
@@ -424,33 +530,80 @@ export default function TicketDetail() {
         </div>
 
         {/* Right Sidebar: Ticket Metadata (Visible on desktop) */}
-        <div style={{ width: '300px', background: '#fff', borderLeft: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto' }}>
+        <div style={{ width: '300px', background: '#F8FAFC', borderLeft: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
           <div>
-            <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94A3B8', fontWeight: '700', letterSpacing: '0.05em', marginBottom: '12px' }}>Ticket Details</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <div style={{ fontSize: '13px', color: '#64748B' }}>Status</div>
-                <div style={{ fontWeight: '500', color: '#0F172A', textTransform: 'capitalize' }}>{ticket.status}</div>
+            <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94A3B8', fontWeight: '700', letterSpacing: '0.05em', marginBottom: '16px' }}>Ticket Details</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+              
+              {/* Status Card */}
+              <div style={{ 
+                background: ticket.status === 'escalated' ? '#FEF2F2' : ticket.status === 'open' ? '#EFF6FF' : ticket.status === 'resolved' ? '#ECFDF5' : '#FFFDF5',
+                border: `1.5px solid ${ticket.status === 'escalated' ? '#FCA5A5' : ticket.status === 'open' ? '#93C5FD' : ticket.status === 'resolved' ? '#6EE7B7' : '#FDE68A'}`,
+                borderRadius: '10px', padding: '12px' 
+              }}>
+                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Status</div>
+                <div style={{ fontWeight: '700', fontSize: '15px', color: ticket.status === 'escalated' ? '#991B1B' : ticket.status === 'open' ? '#1E40AF' : ticket.status === 'resolved' ? '#065F46' : '#92400E', textTransform: 'capitalize', marginTop: '4px' }}>
+                  {ticket.status}
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: '13px', color: '#64748B' }}>Priority</div>
-                <div style={{ fontWeight: '500', color: '#0F172A', textTransform: 'capitalize' }}>{ticket.priority}</div>
+
+              {/* Priority Card */}
+              <div style={{ 
+                border: `1.5px solid ${ticket.priority === 'high' ? '#FCA5A5' : ticket.priority === 'medium' ? '#FDE68A' : '#E2E8F0'}`,
+                borderRadius: '10px', padding: '12px', background: '#fff'
+              }}>
+                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Priority</div>
+                <div style={{ fontWeight: '700', fontSize: '15px', color: ticket.priority === 'high' ? '#991B1B' : '#334155', textTransform: 'capitalize', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: ticket.priority === 'high' ? '#EF4444' : ticket.priority === 'medium' ? '#F59E0B' : '#6B7280' }} />
+                  {ticket.priority}
+                </div>
               </div>
+
+              {/* Category Card */}
               {ticket.category && (
-                <div>
-                  <div style={{ fontSize: '13px', color: '#64748B' }}>Category</div>
-                  <div style={{ fontWeight: '500', color: '#0F172A' }}>{ticket.category}</div>
+                <div style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '12px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Category</div>
+                  <div style={{ fontWeight: '700', fontSize: '15px', color: '#334155', textTransform: 'capitalize', marginTop: '4px' }}>
+                    {ticket.category}
+                  </div>
                 </div>
               )}
-              <div>
-                <div style={{ fontSize: '13px', color: '#64748B' }}>Created</div>
-                <div style={{ fontWeight: '500', color: '#0F172A' }}>{new Date(ticket.created_at || Date.now()).toLocaleString()}</div>
+
+              {/* Created Date Card */}
+              <div style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Created</div>
+                <div style={{ fontWeight: '600', fontSize: '13px', color: '#475569', marginTop: '4px' }}>
+                  {new Date(ticket.created_at || Date.now()).toLocaleDateString()} at {new Date(ticket.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
               </div>
+
             </div>
           </div>
 
+          {/* Support Agent Info (When escalated / active) */}
+          {(ticket.status === 'escalated' || chats[0]?.agent_id) && (
+            <div style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94A3B8', fontWeight: '700', letterSpacing: '0.05em', margin: 0 }}>Support Agent</h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366F1, #4F46E5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px' }}>
+                  SJ
+                </div>
+                <div>
+                  <div style={{ fontWeight: '700', color: '#0F172A', fontSize: '13.5px' }}>Sarah Johnson</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', color: '#10B981', fontWeight: '700', marginTop: '2px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }} /> Online
+                  </div>
+                </div>
+              </div>
+              <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748B' }}>
+                <span>Avg response</span>
+                <span style={{ fontWeight: '700', color: '#0F172A' }}>3 min</span>
+              </div>
+            </div>
+          )}
+
           {user.role !== 'customer' && (
-            <div style={{ background: '#FFFBEB', padding: '16px', borderRadius: '8px', border: '1px solid #FEF3C7' }}>
+            <div style={{ background: '#FFFBEB', padding: '16px', borderRadius: '10px', border: '1.5px solid #FEF3C7' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#D97706', fontWeight: '600', marginBottom: '8px' }}>
                 <AlertCircle size={16} /> Internal Note
               </div>

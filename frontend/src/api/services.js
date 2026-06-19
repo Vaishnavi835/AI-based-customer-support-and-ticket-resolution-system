@@ -193,3 +193,16 @@ export const usersAPI = {
   /** Delete a user (admin only). */
   delete: (userId) => api.delete(`/users/${userId}`),
 };
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export const notificationsAPI = {
+  /** Fetch recent notifications for the logged-in user. */
+  list: () => api.get("/notifications/"),
+
+  /** Mark all notifications as read. */
+  markAllRead: () => api.post("/notifications/mark-all-read"),
+
+  /** Mark a specific notification as read. */
+  markRead: (notificationId) => api.patch(`/notifications/${notificationId}/read`),
+};
