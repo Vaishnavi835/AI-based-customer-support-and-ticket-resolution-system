@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function ForgotPassword() {
   const [step, setStep] = useState(1); // 1: Email, 2: Code, 3: Password, 4: Success
@@ -7,6 +8,8 @@ export default function ForgotPassword() {
   const [code, setCode] = useState(Array(6).fill(""));
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -251,50 +254,103 @@ export default function ForgotPassword() {
           )}
 
           {/* ── STEP 3: Reset Password ───────────────────────────── */}
-          {step === 3 && (
-            <div className="step-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-              <h2 className="demo-ticket__title" style={{ fontSize: '20px', marginTop: '10px' }}>
-                Create new password
-              </h2>
-              <p className="register-subhead">
-                Your code was verified. Choose a secure, new password for your account.
-              </p>
+          {step === 3 && (() => {
+            const strength = (() => {
+              if (!newPassword) return null;
+              let score = 0;
+              if (newPassword.length >= 8) score++;
+              if (/[0-9]/.test(newPassword)) score++;
+              if (/[^A-Za-z0-9]/.test(newPassword)) score++;
+              if (score === 1) return { label: "Weak", className: "weak" };
+              if (score === 2) return { label: "Medium", className: "medium" };
+              if (score === 3) return { label: "Strong & Secure", className: "strong" };
+              return { label: "Weak", className: "weak" };
+            })();
 
-              {error && <div className="alert alert-error">{error}</div>}
+            return (
+              <div className="step-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%' }}>
+                <h2 className="demo-ticket__title" style={{ fontSize: '20px', marginTop: '10px' }}>
+                  Create new password
+                </h2>
+                <p className="register-subhead">
+                  Your code was verified. Choose a secure, new password for your account.
+                </p>
 
-              <form onSubmit={handleResetPassword} className="register-form">
-                <div className="field">
-                  <label htmlFor="newPassword">New Password</label>
-                  <input
-                    id="newPassword"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    autoFocus
-                  />
-                  <div className="field-hint">Must be at least 8 characters long.</div>
-                </div>
+                {error && <div className="alert alert-error">{error}</div>}
 
-                <div className="field">
-                  <label htmlFor="confirmPassword">Confirm Password</label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
+                <form onSubmit={handleResetPassword} className="register-form" style={{ width: '100%' }}>
+                  <div className="field">
+                    <label htmlFor="newPassword">New Password</label>
+                    <div className="password-input-wrapper">
+                      <input
+                        id="newPassword"
+                        type={showPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        required
+                        autoFocus
+                        style={{ width: '100%' }}
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle-btn"
+                        onClick={() => setShowPassword(!showPassword)}
+                        tabIndex="-1"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
 
-                <button type="submit" className="register-submit" disabled={loading}>
-                  {loading ? "Updating password..." : "Reset password"}
-                </button>
-              </form>
-            </div>
-          )}
+                    {/* Password Strength Meter */}
+                    {strength && (
+                      <div className="password-strength-container">
+                        <div className="password-strength-label">
+                          <span>Password Strength:</span>
+                          <span className={`strength-text strength-text--${strength.className}`} style={{ color: strength.className === 'weak' ? '#EF4444' : strength.className === 'medium' ? '#F59E0B' : '#10B981', fontWeight: 'bold' }}>
+                            {strength.label}
+                          </span>
+                        </div>
+                        <div className="password-strength-bar-bg">
+                          <div className={`password-strength-bar ${strength.className}`} />
+                        </div>
+                      </div>
+                    )}
+                    <div className="field-hint">Must be at least 8 characters with a number and symbol.</div>
+                  </div>
+
+                  <div className="field" style={{ marginTop: '14px' }}>
+                    <label htmlFor="confirmPassword">Confirm Password</label>
+                    <div className="password-input-wrapper">
+                      <input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        required
+                        style={{ width: '100%' }}
+                      />
+                      <button
+                        type="button"
+                        className="password-toggle-btn"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        tabIndex="-1"
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button type="submit" className="register-submit" style={{ marginTop: '20px' }} disabled={loading}>
+                    {loading ? "Updating password..." : "Reset password"}
+                  </button>
+                </form>
+              </div>
+            );
+          })()}
 
           {/* ── STEP 4: Success ───────────────────────────────────── */}
           {step === 4 && (

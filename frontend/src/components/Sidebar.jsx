@@ -19,23 +19,23 @@ export default function Sidebar() {
   // Icon rail items differ per role
   const railItems = isCustomer
     ? [
-        { icon: Home, to: '/my-tickets', label: 'Home' },
-        { icon: PlusCircle, to: '/my-tickets/new', label: 'New Ticket' },
-        { icon: Clock, to: '/my-tickets/history', label: 'History' },
+        { icon: Home, to: '/my-tickets', label: '🏠 Home' },
+        { icon: PlusCircle, to: '/my-tickets/new', label: '➕ New Ticket' },
+        { icon: Clock, to: '/my-tickets/history', label: '⏱ History' },
       ]
     : isAgent
     ? [
-        { icon: Inbox, to: '/agent-dashboard', label: 'Inbox' },
-        { icon: Ticket, to: '/tickets', label: 'Tickets' },
-        { icon: ShieldAlert, to: '/escalations', label: 'Escalations' },
-        { icon: BarChart3, to: '/reports', label: 'Reports' },
+        { icon: Inbox, to: '/agent-dashboard', label: '📥 Inbox' },
+        { icon: Ticket, to: '/tickets', label: '🎫 Tickets' },
+        { icon: ShieldAlert, to: '/escalations', label: '🚨 Escalations' },
+        { icon: BarChart3, to: '/reports', label: '📊 Reports' },
       ]
     : [
-        { icon: LayoutDashboard, to: '/dashboard', label: 'Dashboard' },
-        { icon: Ticket, to: '/tickets', label: 'Tickets' },
-        { icon: Users, to: '/users', label: 'Users' },
-        { icon: BookOpen, to: '/knowledge-base', label: 'Knowledge Base' },
-        { icon: BarChart3, to: '/reports', label: 'Reports' },
+        { icon: LayoutDashboard, to: '/dashboard', label: '🏠 Dashboard' },
+        { icon: Ticket, to: '/tickets', label: '🎫 Tickets' },
+        { icon: Users, to: '/users', label: '👥 Users' },
+        { icon: BookOpen, to: '/knowledge-base', label: '📚 Knowledge Base' },
+        { icon: BarChart3, to: '/reports', label: '📊 Reports' },
       ];
 
   return (
@@ -44,7 +44,7 @@ export default function Sidebar() {
       <div className="zd-rail">
         {/* Logo */}
         <div className="zd-rail__logo">
-          <div className="zd-logo-mark">Z</div>
+          <div className="zd-logo-mark" style={{ background: 'linear-gradient(135deg, #C4683D, #E8A87C)', color: '#fff', fontSize: '20px' }}>✦</div>
         </div>
 
         {/* Nav icons */}
@@ -59,9 +59,9 @@ export default function Sidebar() {
 
         {/* Bottom: settings + avatar */}
         <div className="zd-rail__bottom">
-          <NavLink to="/settings" className="zd-rail__link" title="Settings">
+          <NavLink to="/settings" className="zd-rail__link" title="⚙ Settings">
             <Settings size={20} />
-            <span className="zd-rail__label">Settings</span>
+            <span className="zd-rail__label">⚙ Settings</span>
           </NavLink>
           <button
             className="zd-rail__avatar"

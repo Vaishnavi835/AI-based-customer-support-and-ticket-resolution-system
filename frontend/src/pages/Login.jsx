@@ -2,81 +2,93 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import CustomCaptcha from "../components/CustomCaptcha";
+import { Eye, EyeOff, Sparkles } from "lucide-react";
+
+/**
+ * AIWorkflowVisualizer
+ * ====================
+ * Renders a vertical progress stepper showing active/completed AI steps.
+ */
+function AIWorkflowVisualizer({ currentStep }) {
+  const steps = [
+    { title: "Customer Ticket", subtitle: "Critical database outage submitted" },
+    { title: "AI Reads Ticket", subtitle: "Analyzing content syntax & sentiment" },
+    { title: "AI Classifies Issue", subtitle: "Category: Database | Priority: High (99%)" },
+    { title: "Severity & SLA Check", subtitle: "Checking rules & SLA timelines" },
+    { title: "AI Response Generated", subtitle: "DevOps escalation ticket auto-formulated" },
+    { title: "Escalated", subtitle: "Routed to DevOps On-Call Team via PagerDuty" }
+  ];
+
+  return (
+    <div className="ai-workflow-stepper">
+      {steps.map((step, idx) => {
+        const isActive = idx === currentStep;
+        const isCompleted = idx < currentStep;
+        return (
+          <div key={idx} className={`ai-workflow-step ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}>
+            <div className="ai-workflow-dot">
+              {isCompleted ? "✓" : idx + 1}
+            </div>
+            <div className="ai-workflow-content">
+              <span className="ai-workflow-title">{step.title}</span>
+              {isActive && <span className="ai-workflow-subtitle">{step.subtitle}</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * DemoEscalation
  * ==============
- * Cycles cleanly through 4 phases. Customer message is always visible.
- * The AI area replaces thinking dots → response on each loop.
+ * Cycles through the ticket visual states corresponding to the active step.
  */
-function DemoEscalation() {
-  const [phase, setPhase] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const [cardKey, setCardKey] = useState(0); // forces re-mount for fade-in on loop
-  const timeoutRef = useRef(null);
-  const timerRef = useRef(null);
-
-  useEffect(() => {
-    // Phase durations: 0 (show customer) → 1 (AI thinking) → 2 (AI answer) → 3 (escalated) → reset
-    const delays = [900, 1100, 1500, 2800];
-    timeoutRef.current = setTimeout(() => {
-      setPhase((p) => {
-        const next = (p + 1) % 4;
-        if (next === 0) setCardKey((k) => k + 1); // fresh animation on loop restart
-        return next;
-      });
-    }, delays[phase]);
-    return () => clearTimeout(timeoutRef.current);
-  }, [phase]);
-
-  // Live elapsed-minutes ticker
-  useEffect(() => {
-    timerRef.current = setInterval(() => setElapsed((e) => e + 1), 60000);
-    return () => clearInterval(timerRef.current);
-  }, []);
-
-  const escalated = phase === 3;
-  const timeLabel = elapsed === 0 ? "2 min ago" : `${elapsed + 2} min ago`;
+function DemoEscalation({ step }) {
+  const escalated = step === 5;
 
   return (
-    <div className="demo-ticket demo-ticket--enhanced">
+    <div className="demo-ticket demo-ticket--enhanced" style={{ minHeight: '340px' }}>
       {/* ── Ticket header ── */}
       <div className="demo-ticket__top">
         <div className="demo-ticket__header-left">
           <div className="demo-ticket__severity-row">
             <span className="demo-ticket__sev-icon" aria-label="Critical severity">🚨</span>
-            <div className="demo-ticket__title">Production database down</div>
+            <div className="demo-ticket__title" style={{ fontSize: '18px', fontWeight: '700', color: '#1C2333' }}>
+              Production database down
+            </div>
           </div>
-          <div className="demo-ticket__meta">
-            Opened <span className="demo-ticket__ts">{timeLabel}</span>
+          <div className="demo-ticket__meta" style={{ fontSize: '12px' }}>
+            Opened <span className="demo-ticket__ts">2 min ago</span>
           </div>
         </div>
-        <span className={`demo-pill ${escalated ? "demo-pill--escalated" : "demo-pill--open"}`}>
+        <span className={`demo-pill ${escalated ? "demo-pill--escalated" : "demo-pill--open"}`} style={{ animation: escalated ? 'criticalPulse 1.5s infinite' : 'none' }}>
           {escalated ? "Escalated" : "Open"}
         </span>
       </div>
 
       {/* ── Messages area — fixed height, no layout shift ── */}
-      <div className="demo-messages">
-        {/* Customer message — always visible once phase >= 0 */}
-        <div className="demo-msg-row" key="customer">
+      <div className="demo-messages" style={{ height: '230px', overflowY: 'auto' }}>
+        {/* Customer message — always visible */}
+        <div className="demo-msg-row" key="customer" style={{ marginTop: '8px' }}>
           <div className="demo-msg-label demo-msg-label--customer">
             <div className="demo-avatar demo-avatar--customer">CU</div>
             <span>Customer</span>
           </div>
-          <div className="demo-bubble demo-bubble--customer">
+          <div className="demo-bubble demo-bubble--customer" style={{ fontSize: '14px', padding: '10px 16px' }}>
             URGENT: Our production database is unreachable. All users are getting 500 errors!
           </div>
         </div>
 
-        {/* AI area — thinking OR response, never both */}
-        {phase === 1 && (
+        {/* AI Area synced to step */}
+        {step === 1 && (
           <div className="demo-msg-row" key="ai-thinking">
             <div className="demo-msg-label demo-msg-label--ai">
               <div className="demo-avatar demo-avatar--ai">AI</div>
               <span>AI Assistant</span>
             </div>
-            <div className="demo-bubble demo-bubble--ai">
+            <div className="demo-bubble demo-bubble--ai" style={{ padding: '8px 16px' }}>
               <span className="demo-thinking">
                 <i /><i /><i />
               </span>
@@ -84,23 +96,51 @@ function DemoEscalation() {
           </div>
         )}
 
-        {(phase === 2 || phase === 3) && (
+        {step === 2 && (
+          <div className="demo-msg-row" key="ai-classify">
+            <div className="demo-msg-label demo-msg-label--ai">
+              <div className="demo-avatar demo-avatar--ai">AI</div>
+              <span>AI Assistant</span>
+            </div>
+            <div className="demo-bubble demo-bubble--ai" style={{ background: '#F5F3FF', color: '#5B21B6', border: '1px solid #DDD6FE', fontSize: '13px', padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', marginBottom: '4px' }}>
+                <Sparkles size={14} /> AI Classification
+              </div>
+              <div>Category: <strong>Database / DevOps</strong></div>
+              <div>Priority: <strong>Critical (Sev-1)</strong></div>
+              <div>Confidence: <strong>99.4%</strong></div>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="demo-msg-row" key="ai-sla">
+            <div className="demo-msg-label demo-msg-label--ai">
+              <div className="demo-avatar demo-avatar--ai">AI</div>
+              <span>AI Assistant</span>
+            </div>
+            <div className="demo-bubble demo-bubble--ai" style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', fontSize: '13px', padding: '10px 14px' }}>
+              <div style={{ fontWeight: '700', marginBottom: '2px' }}>🚨 SLA Policy Rule Matched:</div>
+              Severity is critical &amp; system downtime detected. Response window is <strong>15 minutes</strong>. Initiating team escalations.
+            </div>
+          </div>
+        )}
+
+        {step >= 4 && (
           <div className="demo-msg-row" key="ai-response">
             <div className="demo-msg-label demo-msg-label--ai">
               <div className="demo-avatar demo-avatar--ai">AI</div>
               <span>AI Assistant</span>
             </div>
             <div className="demo-bubble demo-bubble--ai demo-bubble--critical"
-              style={{ background: '#FEF2F2', color: '#7F1D1D' }}>
-              <span className={`demo-critical-label${
-                phase === 3 ? ' demo-critical-label--pulse' : ''
-              }`}>
-                ⚠ Critical severity detected.
+              style={{ background: '#FEF2F2', color: '#7F1D1D', fontSize: '13.5px', padding: '12px 16px' }}>
+              <span className="demo-critical-label demo-critical-label--pulse">
+                ⚠ Sev-1 Outage Detected.
               </span>
               <br />
-              Escalated to <strong>DevOps Team</strong>.
+              Ticket escalated to <strong>DevOps Response Team</strong>. On-call agents notified.
               <div className="demo-tags-row">
-                <span className="demo-tag demo-tag--red">Sev-1</span>
+                <span className="demo-tag demo-tag--red">Database Outage</span>
                 <span className="demo-tag demo-tag--orange">Auto Escalated</span>
               </div>
             </div>
@@ -111,9 +151,75 @@ function DemoEscalation() {
   );
 }
 
+function LoginDemoSection() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    // Sequence timing: Customer message -> Thinking -> Classify -> SLA check -> Response generated -> Escalated (long hold)
+    const delays = [1600, 1400, 1800, 1600, 2400, 4200];
+    const timer = setTimeout(() => {
+      setStep((s) => (s + 1) % 6);
+    }, delays[step]);
+    return () => clearTimeout(timer);
+  }, [step]);
+
+  return (
+    <div className="register-demo-side">
+      {/* Dot-grid texture overlay */}
+      <div className="demo-side-texture" aria-hidden="true" />
+
+      <div className="demo-eyebrow">Smart AI Routing</div>
+      <h2 className="demo-heading" style={{ fontSize: '32px', marginBottom: '16px' }}>
+        Critical issues are instantly identified and escalated to human experts.
+      </h2>
+
+      {/* Workflow Stepper */}
+      <AIWorkflowVisualizer currentStep={step} />
+
+      {/* Live Card */}
+      <DemoEscalation step={step} />
+
+      {/* Feature highlights */}
+      <div className="demo-features" style={{ marginTop: '24px' }}>
+        <div className="demo-feature">
+          <span className="demo-feature__check">✓</span>
+          <span>97% routing accuracy &amp; classification</span>
+        </div>
+        <div className="demo-feature">
+          <span className="demo-feature__check">✓</span>
+          <span>24/7 AI-powered triage support</span>
+        </div>
+        <div className="demo-feature">
+          <span className="demo-feature__check">✓</span>
+          <span>&lt;10s first response and routing time</span>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="demo-stats-row">
+        <div className="demo-stat">
+          <span className="demo-stat__value">98%</span>
+          <span className="demo-stat__label">faster triage</span>
+        </div>
+        <div className="demo-stat-divider" />
+        <div className="demo-stat">
+          <span className="demo-stat__value">24/7</span>
+          <span className="demo-stat__label">AI assistance</span>
+        </div>
+        <div className="demo-stat-divider" />
+        <div className="demo-stat">
+          <span className="demo-stat__value">&lt;2s</span>
+          <span className="demo-stat__label">ticket routing</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Login() {
   const [email,        setEmail]        = useState("");
   const [password,     setPassword]     = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error,        setError]        = useState("");
   const [loading,      setLoading]      = useState(false);
   const [captchaOk,    setCaptchaOk]    = useState(false);
@@ -152,64 +258,20 @@ export default function Login() {
       <div className="register-card">
 
         {/* ── Left: live demo ─────────────────────────────── */}
-        <div className="register-demo-side">
-          {/* Dot-grid texture overlay */}
-          <div className="demo-side-texture" aria-hidden="true" />
-
-          <div className="demo-eyebrow">Smart Routing</div>
-          <h2 className="demo-heading">
-            Critical issues are instantly identified and escalated to human experts.
-          </h2>
-
-          <DemoEscalation />
-
-          {/* Feature highlights */}
-          <div className="demo-features">
-            <div className="demo-feature">
-              <span className="demo-feature__check">✓</span>
-              <span>AI Ticket Classification</span>
-            </div>
-            <div className="demo-feature">
-              <span className="demo-feature__check">✓</span>
-              <span>Smart Routing &amp; Priority Detection</span>
-            </div>
-            <div className="demo-feature">
-              <span className="demo-feature__check">✓</span>
-              <span>Auto Escalation to On-Call Teams</span>
-            </div>
-          </div>
-
-          {/* Stats row */}
-          <div className="demo-stats-row">
-            <div className="demo-stat">
-              <span className="demo-stat__value">98%</span>
-              <span className="demo-stat__label">faster triage</span>
-            </div>
-            <div className="demo-stat-divider" />
-            <div className="demo-stat">
-              <span className="demo-stat__value">24/7</span>
-              <span className="demo-stat__label">AI assistance</span>
-            </div>
-            <div className="demo-stat-divider" />
-            <div className="demo-stat">
-              <span className="demo-stat__value">&lt;2s</span>
-              <span className="demo-stat__label">ticket routing</span>
-            </div>
-          </div>
-
-          <div className="demo-caption">
-            <span className="demo-caption__dot" style={{ background: '#E53E3E' }} />
-            Zero-delay escalation
-          </div>
-        </div>
+        <LoginDemoSection />
 
         {/* ── Right: form ───────────────────────────────────── */}
         <div className="register-form-side">
           {/* Enhanced brand logo */}
-          <div className="register-brand">
-            <span className="register-brand__icon">✦</span>
-            AI<span>Support</span>
-            <div className="register-brand__tagline">Smart Customer Operations</div>
+          <div className="register-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="register-brand__icon" style={{ fontSize: '32px', color: '#C4683D', marginRight: '4px' }}>✦</span>
+              <span style={{ fontSize: '30px', fontWeight: '800', color: '#1C2333', letterSpacing: '-0.5px' }}>AI</span>
+              <span style={{ fontSize: '30px', fontWeight: '600', color: '#C4683D', fontFamily: 'Georgia, serif' }}>Support</span>
+            </div>
+            <div className="register-brand__tagline" style={{ marginLeft: '36px', fontSize: '11px', fontWeight: '600', letterSpacing: '0.08em', color: '#8A8E9C', textTransform: 'uppercase' }}>
+              Smart Ticket Intelligence
+            </div>
           </div>
           <p className="register-subhead">Welcome back! Please enter your details.</p>
 
@@ -259,15 +321,27 @@ export default function Login() {
                 <label htmlFor="login-password">Password</label>
                 <Link to="/forgot-password" className="forgot-link">Forgot password?</Link>
               </div>
-              <input
-                id="login-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="input--ivory"
-              />
+              <div className="password-input-wrapper">
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="input--ivory"
+                  style={{ width: '100%' }}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex="-1"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             <div className="remember-row">

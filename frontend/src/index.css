@@ -3462,3 +3462,374 @@ a:hover { text-decoration: underline; }
     display: none !important;
   }
 }
+
+/* ── PASSWORD TOGGLE & STRENGTH METER ───────────────────────────── */
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.password-input-wrapper input {
+  padding-right: 50px !important;
+}
+.password-toggle-btn {
+  position: absolute;
+  right: 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #8A8E9C;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background-color 0.15s;
+  z-index: 10;
+}
+.password-toggle-btn:hover {
+  color: #1C2333;
+  background-color: rgba(28, 35, 51, 0.04);
+}
+
+.password-strength-container {
+  margin-top: 8px;
+}
+.password-strength-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5B6072;
+  margin-bottom: 4px;
+}
+.password-strength-bar-bg {
+  height: 6px;
+  background-color: #EDE8DF;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.password-strength-bar {
+  height: 100%;
+  width: 0;
+  transition: width 0.3s ease, background-color 0.3s ease;
+  border-radius: 3px;
+}
+.password-strength-bar.weak { width: 33.3%; background-color: #EF4444; }
+.password-strength-bar.medium { width: 66.6%; background-color: #F59E0B; }
+.password-strength-bar.strong { width: 100%; background-color: #10B981; }
+
+/* ── LIVE AI WORKFLOW VISUALIZER ────────────────────────────── */
+.ai-workflow-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 24px 0;
+  width: 100%;
+  max-width: 500px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid #E2DBCD;
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(8px);
+}
+.ai-workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+.ai-workflow-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 30px;
+  bottom: -18px;
+  width: 2px;
+  background-color: #E2DBCD;
+  transition: background-color 0.3s;
+}
+.ai-workflow-step.completed:not(:last-child)::after {
+  background-color: #C4683D;
+}
+.ai-workflow-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: #fff;
+  border: 2px solid #C1C1C1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8A8E9C;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 2;
+  flex-shrink: 0;
+}
+.ai-workflow-step.active .ai-workflow-dot {
+  border-color: #C4683D;
+  background-color: #C4683D;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(196, 104, 61, 0.18), 0 0 12px rgba(196, 104, 61, 0.3);
+  animation: dotPulse 2s infinite ease-in-out;
+}
+.ai-workflow-step.completed .ai-workflow-dot {
+  border-color: #C4683D;
+  background-color: #FDFAF6;
+  color: #C4683D;
+}
+.ai-workflow-content {
+  display: flex;
+  flex-direction: column;
+}
+.ai-workflow-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #8A8E9C;
+  transition: color 0.3s;
+}
+.ai-workflow-step.active .ai-workflow-title {
+  color: #1C2333;
+}
+.ai-workflow-step.completed .ai-workflow-title {
+  color: #5B6072;
+}
+.ai-workflow-subtitle {
+  font-size: 12px;
+  color: #8A8E9C;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.ai-workflow-step.active .ai-workflow-subtitle {
+  opacity: 1;
+  max-height: 40px;
+  margin-top: 2px;
+}
+
+@keyframes dotPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* ── CONTRAST IMPROVEMENTS & PREMIUM HIGHLIGHTS ───────────────── */
+.rich-ticket-card {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s, box-shadow 0.25s !important;
+}
+.rich-ticket-card:hover {
+  transform: translateY(-3.5px) !important;
+  border-color: #6366F1 !important;
+  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.12), 0 8px 16px -6px rgba(99, 102, 241, 0.08) !important;
+}
+.rich-ticket-card__title {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: #0B0F19 !important; /* Darken for higher contrast */
+}
+.rich-ticket-card__desc {
+  color: #334155 !important; /* Darken for higher contrast */
+}
+.rich-ticket-card__id {
+  color: #64748B !important;
+}
+.rich-ticket-card__btn {
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: #4F46E5 !important;
+  padding: 6px 12px !important;
+  background-color: #F5F3FF !important;
+  border: 1px solid #E9D5FF !important;
+  border-radius: 8px !important;
+  transition: all 0.2s !important;
+}
+.rich-ticket-card:hover .rich-ticket-card__btn {
+  background-color: #4F46E5 !important;
+  color: #fff !important;
+  border-color: #4F46E5 !important;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2) !important;
+}
+.badge--orange-pill {
+  background: #FFF3E0;
+  color: #E65100;
+  border: 1px solid #FFE0B2;
+}
+
+/* AI Insights Mini Cards */
+.ai-insights-panel__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+  margin-bottom: 20px;
+}
+.ai-insights-panel__metric-card {
+  background: #ffffff;
+  border: 1px solid #E9D5FF;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 2px rgba(139, 92, 246, 0.04);
+}
+.ai-insights-panel__metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.08);
+  border-color: #D8B4FE;
+}
+.ai-insights-panel__metric-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: #6D28D9;
+  letter-spacing: -0.5px;
+}
+.ai-insights-panel__metric-label {
+  font-size: 11.5px;
+  color: #6B21B6;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* User stats indicators */
+.user-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.user-stat-card {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+}
+.user-stat-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E293B;
+}
+.user-stat-lbl {
+  font-size: 11.5px;
+  color: #64748B;
+  font-weight: 500;
+}
+
+/* Activity feed widget */
+.activity-feed-container {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 18px;
+  margin-top: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+.activity-feed-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.activity-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.activity-feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #475569;
+}
+.activity-feed-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #6366F1;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.activity-feed-time {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Status dot styles inside ticket cards */
+.status-dot-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid transparent;
+}
+.status-dot-indicator.blue {
+  color: #1D4ED8;
+  background-color: #EFF6FF;
+  border-color: #BFDBFE;
+}
+.status-dot-indicator.orange {
+  color: #C2410C;
+  background-color: #FFF7ED;
+  border-color: #FFEDD5;
+}
+.status-dot-indicator.red {
+  color: #B91C1C;
+  background-color: #FEF2F2;
+  border-color: #FECACA;
+}
+.status-dot-indicator.green {
+  color: #15803D;
+  background-color: #F0FDF4;
+  border-color: #BBF7D0;
+}
+.status-dot-indicator.gray {
+  color: #475569;
+  background-color: #F8FAFC;
+  border-color: #E2E8F0;
+}
+
+.status-bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+.status-bullet.pulse {
+  animation: bulletPulse 2s infinite ease-in-out;
+}
+@keyframes bulletPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.5; }
+}
+
+/* Motion Glow */
+.register-form .field input:focus {
+  box-shadow: 0 0 0 4px rgba(196,104,61,0.15), 0 0 12px rgba(196,104,61,0.1);
+}
+.input--ivory:focus {
+  box-shadow: 0 0 0 4px rgba(196,104,61,0.15), 0 0 12px rgba(196,104,61,0.1) !important;
+}

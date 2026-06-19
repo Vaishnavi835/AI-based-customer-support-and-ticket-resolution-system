@@ -1,85 +1,200 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { Eye, EyeOff, Sparkles } from "lucide-react";
+
+/**
+ * AIWorkflowVisualizer
+ * ====================
+ * Renders a vertical progress stepper showing active/completed AI steps.
+ */
+function AIWorkflowVisualizer({ currentStep }) {
+  const steps = [
+    { title: "Customer Ticket", subtitle: "User submits a billing inquiry about a refund" },
+    { title: "AI Reads Ticket", subtitle: "Parsing language sentiment and content intent" },
+    { title: "AI Classifies Issue", subtitle: "Classified as: Billing & Payments (97.2%)" },
+    { title: "Knowledge Base Search", subtitle: "Scanning KB articles for refund rules" },
+    { title: "AI Response Generated", subtitle: "Drafting auto-response with KB reference citations" },
+    { title: "Resolved", subtitle: "Ticket marked solved without agent intervention" }
+  ];
+
+  return (
+    <div className="ai-workflow-stepper">
+      {steps.map((step, idx) => {
+        const isActive = idx === currentStep;
+        const isCompleted = idx < currentStep;
+        return (
+          <div key={idx} className={`ai-workflow-step ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}>
+            <div className="ai-workflow-dot">
+              {isCompleted ? "✓" : idx + 1}
+            </div>
+            <div className="ai-workflow-content">
+              <span className="ai-workflow-title">{step.title}</span>
+              {isActive && <span className="ai-workflow-subtitle">{step.subtitle}</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * DemoTicket
  * ==========
- * A self-looping mockup of the actual product flow: a customer message
- * comes in, the AI "thinks", then replies with a visible knowledge-base
- * citation, and the ticket flips to resolved. Purely decorative —
- * no API calls — but every line mirrors what /chat and /rag actually do.
+ * A self-looping mockup of the actual product flow.
  */
-function DemoTicket() {
-  const [step, setStep] = useState(0);
-  const timeoutRef = useRef(null);
-
-  useEffect(() => {
-    const delay = step % 4 === 3 ? 3200 : 1100;
-    timeoutRef.current = setTimeout(() => {
-      setStep((s) => s + 1);
-    }, delay);
-    return () => clearTimeout(timeoutRef.current);
-  }, [step]);
-
-  const phase = step % 4; // 0: customer msg, 1: thinking, 2: ai answer, 3: resolved
-  const resolved = phase === 3;
+function DemoTicket({ step }) {
+  const resolved = step === 5;
 
   return (
-    <div className="demo-ticket">
+    <div className="demo-ticket demo-ticket--enhanced" style={{ minHeight: '340px' }}>
       <div className="demo-ticket__top">
         <div>
-          <div className="demo-ticket__title">Refund taking too long</div>
-          <div className="demo-ticket__meta">Opened 2 min ago</div>
+          <div className="demo-ticket__title" style={{ fontSize: '18px', fontWeight: '700', color: '#1C2333' }}>
+            Refund taking too long
+          </div>
+          <div className="demo-ticket__meta" style={{ fontSize: '12px' }}>Opened 2 min ago</div>
         </div>
-        <span className={`demo-pill ${resolved ? "demo-pill--resolved" : "demo-pill--open"}`}>
+        <span className={`demo-pill ${resolved ? "demo-pill--resolved" : "demo-pill--open"}`} style={{ animation: resolved ? 'bulletPulse 2s infinite' : 'none' }}>
           {resolved ? "resolved" : "open"}
         </span>
       </div>
 
-      {phase >= 0 && (
-        <div className="demo-msg-row">
-          <div className="demo-bubble demo-bubble--customer">
+      <div className="demo-messages" style={{ height: '230px', overflowY: 'auto' }}>
+        {/* Customer message - always visible */}
+        <div className="demo-msg-row" style={{ marginTop: '8px' }}>
+          <div className="demo-msg-label demo-msg-label--customer">
+            <div className="demo-avatar demo-avatar--customer">CU</div>
+            <span>Customer</span>
+          </div>
+          <div className="demo-bubble demo-bubble--customer" style={{ fontSize: '14px', padding: '10px 16px' }}>
             My refund hasn&rsquo;t shown up. It&rsquo;s been over a week, this is frustrating.
           </div>
         </div>
-      )}
 
-      {phase === 1 && (
-        <div className="demo-msg-row">
-          <div className="demo-bubble demo-bubble--ai">
-            <span className="demo-thinking">
-              <i /><i /><i />
-            </span>
-          </div>
-        </div>
-      )}
-
-      {(phase === 2 || phase === 3) && (
-        <div className="demo-msg-row">
-          <div className="demo-bubble demo-bubble--ai">
-            Refunds are processed within 5&ndash;7 business days. You&rsquo;re at day 7,
-            so it should land within 24 hours.
-            <div className="demo-citation">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 12h6m-6 4h6M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
-              </svg>
-              Refund Policy &middot; kb_001
+        {step === 1 && (
+          <div className="demo-msg-row">
+            <div className="demo-msg-label demo-msg-label--ai">
+              <div className="demo-avatar demo-avatar--ai">AI</div>
+              <span>AI Assistant</span>
+            </div>
+            <div className="demo-bubble demo-bubble--ai" style={{ padding: '8px 16px' }}>
+              <span className="demo-thinking">
+                <i /><i /><i />
+              </span>
             </div>
           </div>
+        )}
+
+        {step === 2 && (
+          <div className="demo-msg-row">
+            <div className="demo-msg-label demo-msg-label--ai">
+              <div className="demo-avatar demo-avatar--ai">AI</div>
+              <span>AI Assistant</span>
+            </div>
+            <div className="demo-bubble demo-bubble--ai" style={{ background: '#F5F3FF', color: '#5B21B6', border: '1px solid #DDD6FE', fontSize: '13px', padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', marginBottom: '4px' }}>
+                <Sparkles size={14} /> AI Classification
+              </div>
+              <div>Category: <strong>Billing / Refunds</strong></div>
+              <div>Priority: <strong>Medium</strong></div>
+              <div>Confidence: <strong>97.2%</strong></div>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="demo-msg-row">
+            <div className="demo-msg-label demo-msg-label--ai">
+              <div className="demo-avatar demo-avatar--ai">AI</div>
+              <span>AI Assistant</span>
+            </div>
+            <div className="demo-bubble demo-bubble--ai" style={{ background: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0', fontSize: '13px', padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', marginBottom: '4px' }}>
+                📖 Knowledge Base Match
+              </div>
+              Searching <strong>refund_policy.md</strong> (kb_001)... Found matching rule: Refunds processed within 5-7 business days.
+            </div>
+          </div>
+        )}
+
+        {step >= 4 && (
+          <div className="demo-msg-row">
+            <div className="demo-msg-label demo-msg-label--ai">
+              <div className="demo-avatar demo-avatar--ai">AI</div>
+              <span>AI Assistant</span>
+            </div>
+            <div className="demo-bubble demo-bubble--ai" style={{ fontSize: '13.5px', padding: '12px 16px' }}>
+              Refunds are processed within 5&ndash;7 business days. You&rsquo;re currently at day 7, so the transaction should settle within the next 24 hours.
+              <div className="demo-citation">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 12h6m-6 4h6M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
+                </svg>
+                Refund Policy &middot; kb_001
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RegisterDemoSection() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const delays = [1600, 1400, 1800, 1600, 2400, 4200];
+    const timer = setTimeout(() => {
+      setStep((s) => (s + 1) % 6);
+    }, delays[step]);
+    return () => clearTimeout(timer);
+  }, [step]);
+
+  return (
+    <div className="register-demo-side">
+      {/* Dot-grid texture overlay */}
+      <div className="demo-side-texture" aria-hidden="true" />
+
+      <div className="demo-eyebrow">Instant AI Resolution</div>
+      <h2 className="demo-heading" style={{ fontSize: '32px', marginBottom: '16px' }}>
+        Every ticket gets read, classified, and answered &mdash; before a human ever sees it.
+      </h2>
+
+      {/* Workflow Stepper */}
+      <AIWorkflowVisualizer currentStep={step} />
+
+      {/* Demo Ticket Card */}
+      <DemoTicket step={step} />
+
+      {/* Feature highlights */}
+      <div className="demo-features" style={{ marginTop: '24px' }}>
+        <div className="demo-feature">
+          <span className="demo-feature__check">✓</span>
+          <span>97% routing accuracy &amp; classification</span>
         </div>
-      )}
+        <div className="demo-feature">
+          <span className="demo-feature__check">✓</span>
+          <span>24/7 AI-powered triage support</span>
+        </div>
+        <div className="demo-feature">
+          <span className="demo-feature__check">✓</span>
+          <span>&lt;10s first response and routing time</span>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function Register() {
-  const [name,     setName]     = useState("");
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
-  const [role,     setRole]     = useState("customer");
-  const [error,    setError]    = useState("");
-  const [loading,  setLoading]  = useState(false);
+  const [name,         setName]         = useState("");
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [role,         setRole]         = useState("customer");
+  const [error,        setError]        = useState("");
+  const [loading,      setLoading]      = useState(false);
 
   const { register } = useAuth();
   const navigate     = useNavigate();
@@ -106,14 +221,34 @@ export default function Register() {
     }
   };
 
+  const strength = (() => {
+    if (!password) return null;
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    if (score === 1) return { label: "Weak", className: "weak" };
+    if (score === 2) return { label: "Medium", className: "medium" };
+    if (score === 3) return { label: "Strong & Secure", className: "strong" };
+    return { label: "Weak", className: "weak" };
+  })();
+
   return (
     <div className="register-shell">
       <div className="register-card">
 
-        {/* ── Left: form ───────────────────────────────────── */}
+        {/* ── Left: Form Side ───────────────────────────────── */}
         <div className="register-form-side">
-          <div className="register-brand">
-            AI<span>Support</span>
+          {/* Enhanced brand logo */}
+          <div className="register-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="register-brand__icon" style={{ fontSize: '32px', color: '#C4683D', marginRight: '4px' }}>✦</span>
+              <span style={{ fontSize: '30px', fontWeight: '800', color: '#1C2333', letterSpacing: '-0.5px' }}>AI</span>
+              <span style={{ fontSize: '30px', fontWeight: '600', color: '#C4683D', fontFamily: 'Georgia, serif' }}>Support</span>
+            </div>
+            <div className="register-brand__tagline" style={{ marginLeft: '36px', fontSize: '11px', fontWeight: '600', letterSpacing: '0.08em', color: '#8A8E9C', textTransform: 'uppercase' }}>
+              Smart Ticket Intelligence
+            </div>
           </div>
           <p className="register-subhead">Create your account to start a ticket</p>
 
@@ -147,24 +282,51 @@ export default function Register() {
 
             <div className="field">
               <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••"
-                required
-              />
+              <div className="password-input-wrapper">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••"
+                  required
+                  style={{ width: '100%' }}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex="-1"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              
+              {/* Dynamic Strength Indicator */}
+              {strength && (
+                <div className="password-strength-container">
+                  <div className="password-strength-label">
+                    <span>Password Strength:</span>
+                    <span className={`strength-text strength-text--${strength.className}`} style={{ color: strength.className === 'weak' ? '#EF4444' : strength.className === 'medium' ? '#F59E0B' : '#10B981', fontWeight: 'bold' }}>
+                      {strength.label}
+                    </span>
+                  </div>
+                  <div className="password-strength-bar-bg">
+                    <div className={`password-strength-bar ${strength.className}`} />
+                  </div>
+                </div>
+              )}
               <div className="field-hint">8+ characters, with a number and a symbol</div>
             </div>
 
             <div className="field">
-              <label htmlFor="role">Role (Demo)</label>
+              <label htmlFor="role">Account Type</label>
               <select
                 id="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                style={{ padding: '12px 14px', borderRadius: '8px', border: '1.5px solid #E2DBCD', fontSize: '15px', outline: 'none', background: '#fff', color: '#1C2333', fontFamily: 'inherit' }}
+                style={{ padding: '12px 14px', borderRadius: '8px', border: '1.5px solid #E2DBCD', fontSize: '15px', outline: 'none', background: '#fff', color: '#1C2333', fontFamily: 'inherit', width: '100%' }}
               >
                 <option value="customer">Customer</option>
                 <option value="support_agent">Support Agent</option>
@@ -172,7 +334,7 @@ export default function Register() {
               </select>
             </div>
 
-            <button type="submit" className="register-submit" disabled={loading}>
+            <button type="submit" className="register-submit" disabled={loading} style={{ marginTop: '16px' }}>
               {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
@@ -186,20 +348,8 @@ export default function Register() {
           </div>
         </div>
 
-        {/* ── Right: live demo ─────────────────────────────── */}
-        <div className="register-demo-side">
-          <div className="demo-eyebrow">How it works</div>
-          <h2 className="demo-heading">
-            Every ticket gets read, classified, and answered &mdash; before a human ever sees it.
-          </h2>
-
-          <DemoTicket />
-
-          <div className="demo-caption">
-            <span className="demo-caption__dot" />
-            Resolved without a support agent
-          </div>
-        </div>
+        {/* ── Right: Live Demo ───────────────────────────────── */}
+        <RegisterDemoSection />
 
       </div>
     </div>
