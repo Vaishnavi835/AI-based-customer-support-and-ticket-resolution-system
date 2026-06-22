@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ticketsAPI, chatAPI, escalationAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
-import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Sparkles, User, BookOpen } from "lucide-react";
+import { SkeletonCard, SkeletonChatBubble } from "../components/SkeletonCard";
+import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Sparkles, User } from "lucide-react";
 
 /**
  * TypewriterText
@@ -14,11 +15,6 @@ import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Spa
 function TypewriterText({ text, speed = 12, onComplete }) {
   const [displayedText, setDisplayedText] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    setDisplayedText("");
-    setCurrentIndex(0);
-  }, [text]);
 
   useEffect(() => {
     if (currentIndex < text.length) {
@@ -53,23 +49,29 @@ export default function TicketDetail() {
   const [lastResponseToType, setLastResponseToType] = useState(null);
   const messagesEndRef = useRef(null);
 
-  const loadData = async () => {
-    try {
-      const [ticketRes, chatRes] = await Promise.all([
-        ticketsAPI.get(id),
-        chatAPI.getHistory(id).catch(() => ({ data: [] })),
-      ]);
-      setTicket(ticketRes.data);
-      setChats(chatRes.data || []);
-      scrollToBottom();
-    } catch (err) {
-      console.error("Failed to load ticket", err);
-    } finally {
-      setLoading(false);
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => { loadData(); }, [id]);
+  const loadData = useCallback(() => {
+    Promise.all([
+      ticketsAPI.get(id),
+      chatAPI.getHistory(id).catch(() => ({ data: [] })),
+    ])
+      .then(([ticketRes, chatRes]) => {
+        setTicket(ticketRes.data);
+        setChats(chatRes.data || []);
+        scrollToBottom();
+      })
+      .catch((err) => {
+        console.error("Failed to load ticket", err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [id]);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Listen to live chat message/interaction updates
   useWebSocketEvent("chat_updated", (data) => {
@@ -84,10 +86,6 @@ export default function TicketDetail() {
       loadData();
     }
   });
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
@@ -134,7 +132,38 @@ export default function TicketDetail() {
     }
   };
 
-  if (loading) return <div className="cd-page" style={{ padding: '32px' }}><p>Loading...</p></div>;
+  if (loading) return (
+    <div className="cd-page" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Skeleton Topbar */}
+      <div style={{ padding: '16px 32px', background: '#fff', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
+        <div className="skeleton-shimmer skeleton-avatar" style={{ width: '24px', height: '24px' }} />
+        <div style={{ flex: 1 }}>
+          <div className="skeleton-shimmer skeleton-title" style={{ margin: 0, width: '240px', height: '20px' }} />
+          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+            <div className="skeleton-shimmer skeleton-block" style={{ width: '80px', height: '16px', borderRadius: '4px' }} />
+            <div className="skeleton-shimmer skeleton-block" style={{ width: '60px', height: '16px', borderRadius: '4px' }} />
+          </div>
+        </div>
+      </div>
+      
+      {/* Skeleton Main Grid */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left message thread skeleton */}
+        <div style={{ flex: 1, padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '16px', background: '#F8FAFC', overflowY: 'auto' }}>
+          <SkeletonChatBubble isSelf={false} />
+          <SkeletonChatBubble isSelf={true} />
+          <SkeletonChatBubble isSelf={false} />
+        </div>
+        
+        {/* Right sidebar skeleton */}
+        <div style={{ width: '300px', background: '#ffffff', borderLeft: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="skeleton-shimmer skeleton-title" style={{ width: '50%', height: '16px' }} />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </div>
+    </div>
+  );
   if (!ticket) return <div className="cd-page" style={{ padding: '32px' }}><p>Ticket not found</p></div>;
 
   // Flatten the conversation messages for simple, chronological display
@@ -188,7 +217,7 @@ export default function TicketDetail() {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.3px' }}>{ticket.title}</h2>
+            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.3px' }}>{ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : ""}</h2>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', fontSize: '13px', color: '#64748B' }}>
               <span style={{ fontWeight: '700', color: '#334155' }}>#TKT-{ticket.id.slice(0, 8).toUpperCase()}</span>
               <span>•</span>
@@ -288,7 +317,6 @@ export default function TicketDetail() {
                 avatarInitials = "AG";
               } else {
                 avatarClass += " chat-avatar--ai";
-                avatarInitials = "";
                 avatarIcon = <Sparkles size={14} />;
               }
 
@@ -340,6 +368,7 @@ export default function TicketDetail() {
                             <div style={{ fontSize: '14.5px', color: '#4C1D95', lineHeight: '1.5' }}>
                               {isLastMessage && lastResponseToType === msg.content ? (
                                 <TypewriterText 
+                                  key={msg.content}
                                   text={msg.content} 
                                   onComplete={() => {
                                     setLastResponseToType(null);
@@ -573,7 +602,9 @@ export default function TicketDetail() {
               <div style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '12px' }}>
                 <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Created</div>
                 <div style={{ fontWeight: '600', fontSize: '13px', color: '#475569', marginTop: '4px' }}>
-                  {new Date(ticket.created_at || Date.now()).toLocaleDateString()} at {new Date(ticket.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {ticket.created_at
+                    ? `${new Date(ticket.created_at).toLocaleDateString()} at ${new Date(ticket.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                    : "—"}
                 </div>
               </div>
 

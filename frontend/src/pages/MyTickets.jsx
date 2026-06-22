@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { 
   PlusCircle, Ticket, Activity, CheckCircle, 
-  Clock, Settings, FileText, ChevronRight, Inbox, MailOpen,
-  Search, Filter, Sparkles, Zap, BookOpen,
-  TrendingUp, TrendingDown, CreditCard, Cpu, User, UserCircle
+  Clock, Settings, FileText, Inbox, MailOpen,
+  Search, Sparkles, Zap, BookOpen,
+  TrendingUp, TrendingDown, CreditCard, Cpu, User
 } from "lucide-react";
+import { SkeletonCard } from "../components/SkeletonCard";
 
 /* ── Color maps ────────────────────────────────────────────────── */
 const STATUS_COLORS = {
@@ -77,8 +78,7 @@ export default function MyTickets() {
   const [formError,   setFormError]   = useState("");
   const [formSuccess, setFormSuccess] = useState("");
 
-  const loadTickets = () => {
-    setLoading(true);
+  const loadTickets = useCallback(() => {
     ticketsAPI.list()
       .then((res) => setTickets(res.data.tickets || []))
       .catch(() => {
@@ -89,9 +89,9 @@ export default function MyTickets() {
         ]);
       })
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(() => { loadTickets(); }, []);
+  useEffect(() => { loadTickets(); }, [loadTickets]);
 
   // Listen to live ticket created events (e.g. if created from another session/tab)
   useWebSocketEvent("ticket_created", (data) => {
@@ -157,13 +157,6 @@ export default function MyTickets() {
     return matchesStatus && matchesSearch && matchesPriority && matchesCategory;
   });
 
-  const timeAgo = (d) => {
-    const m = Math.floor((Date.now() - new Date(d)) / 60_000);
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  };
 
   return (
     <div className="cd-page">
@@ -266,7 +259,13 @@ export default function MyTickets() {
                 </button>
               </div>
 
-              {loading && <p>Loading tickets...</p>}
+              {loading && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[1, 2, 3].map(i => (
+                    <SkeletonCard key={i} />
+                  ))}
+                </div>
+              )}
               {!loading && tickets.length === 0 && (
                 <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px dashed #CBD5E1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
                   <div className="modern-empty-state__icon" style={{ background: '#EEEDFF', color: '#6366F1', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -283,21 +282,21 @@ export default function MyTickets() {
               {!loading && tickets.length > 0 && (
                 <div className="rich-ticket-list">
                   {tickets.slice(0, 4).map(ticket => {
-                    const timeStr = new Date(ticket.created_at || Date.now()).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    });
+                    const timeStr = ticket.created_at
+                      ? new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      : "—";
 
                     return (
                       <Link to={`/tickets/${ticket.id}`} key={ticket.id} className="rich-ticket-card">
                         <div className="rich-ticket-card__header">
-                          <div className="rich-ticket-card__title-row">
+                           <div className="rich-ticket-card__title-row">
                             <span className="rich-ticket-card__emoji" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#F1F5F9', borderRadius: '8px' }}>
                               {getCategoryIcon(ticket.category)}
                             </span>
                             <div>
-                              <div className="rich-ticket-card__title">{ticket.title}</div>
+                              <div className="rich-ticket-card__title">
+                                {ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : ""}
+                              </div>
                               <span className="rich-ticket-card__id">#{ticket.id || 'TKT-000'}</span>
                             </div>
                           </div>
@@ -691,7 +690,13 @@ export default function MyTickets() {
               </div>
 
               {/* Tickets list */}
-              {loading && <p className="loading-text">Loading tickets...</p>}
+              {loading && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[1, 2, 3, 4].map(i => (
+                    <SkeletonCard key={i} />
+                  ))}
+                </div>
+              )}
 
               {!loading && filtered.length === 0 && (
                 <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px dashed #CBD5E1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
@@ -709,11 +714,9 @@ export default function MyTickets() {
               {!loading && filtered.length > 0 && (
                 <div className="rich-ticket-list">
                   {filtered.map(ticket => {
-                    const timeStr = new Date(ticket.created_at || Date.now()).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    });
+                    const timeStr = ticket.created_at
+                      ? new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      : "—";
 
                     return (
                       <Link to={`/tickets/${ticket.id}`} key={ticket.id} className="rich-ticket-card">
@@ -723,7 +726,9 @@ export default function MyTickets() {
                               {getCategoryIcon(ticket.category)}
                             </span>
                             <div>
-                              <div className="rich-ticket-card__title">{ticket.title}</div>
+                              <div className="rich-ticket-card__title">
+                                {ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : ""}
+                              </div>
                               <span className="rich-ticket-card__id">#{ticket.id || 'TKT-000'}</span>
                             </div>
                           </div>

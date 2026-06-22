@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
+import { useWebSocketEvent } from "../context/WebSocketContext";
+import { SkeletonTableRow } from "../components/SkeletonCard";
 import {
-  Search, Filter, ChevronDown, MoreHorizontal, Plus, Sparkles, BarChart3,
+  Search, Filter, ChevronDown, Plus, Sparkles, BarChart3,
   RefreshCw, CheckCircle2, AlertTriangle, ArrowRight, UserPlus, MessageSquare,
-  TrendingUp, Clock, HelpCircle, Check, Inbox
+  TrendingUp, Clock
 } from "lucide-react";
 
 const STATUS_COLORS = {
@@ -37,8 +39,7 @@ export default function AgentDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAISuggestions, setShowAISuggestions] = useState(false);
 
-  const loadTickets = (silent = false) => {
-    if (!silent) setLoading(true);
+  const loadTickets = useCallback(() => {
     ticketsAPI.agentTickets(user.id)
       .then((res) => {
         setData(res.data);
@@ -65,16 +66,26 @@ export default function AgentDashboard() {
         setLoading(false);
         setIsRefreshing(false);
       });
-  };
+  }, [user.id]);
 
   useEffect(() => {
     loadTickets();
-  }, [user.id]);
+  }, [loadTickets]);
+
+  // Subscribe to real-time ticket events
+  useWebSocketEvent("ticket_created", () => {
+    loadTickets();
+  });
+
+  useWebSocketEvent("ticket_updated", () => {
+    loadTickets();
+  });
 
   const handleRefresh = () => {
     setIsRefreshing(true);
+    setLoading(true);
     setTimeout(() => {
-      loadTickets(true);
+      loadTickets();
     }, 600);
   };
 
@@ -475,7 +486,28 @@ export default function AgentDashboard() {
 
         {/* Tickets Grid / Table Content */}
         <div style={{ flex: 1 }}>
-          {loading && <div style={{ padding: '48px', textAlign: 'center', color: '#94A3B8', fontSize: '14px' }}>Loading tickets...</div>}
+          {loading && (
+            <div style={{ overflowX: 'auto', background: '#fff', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '10px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>ID</th>
+                    <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Requester</th>
+                    <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Subject</th>
+                    <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Status</th>
+                    <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Priority</th>
+                    <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Created</th>
+                    <th style={{ padding: '12px 20px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <SkeletonTableRow key={i} cols={7} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Premium Empty State */}
           {!loading && filtered.length === 0 && (
@@ -567,7 +599,7 @@ export default function AgentDashboard() {
                           onMouseEnter={e => e.currentTarget.style.color = '#6366F1'}
                           onMouseLeave={e => e.currentTarget.style.color = '#0F172A'}
                         >
-                          {ticket.title}
+                          {ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : ""}
                         </Link>
                       </td>
 

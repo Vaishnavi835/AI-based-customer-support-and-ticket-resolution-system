@@ -19,6 +19,14 @@ export default function Profile() {
 
       <div className="form-card" style={{ maxWidth: '600px' }}>
         <h2>Personal Details</h2>
+        <div style={{
+          width: '64px', height: '64px', borderRadius: '50%',
+          background: '#6366F1', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '24px', fontWeight: '700', marginBottom: '20px'
+        }}>
+          {user?.name?.[0]?.toUpperCase()}
+        </div>
         <div className="form-group" style={{ marginBottom: '16px' }}>
           <label>Full Name</label>
           <input type="text" value={user.name} disabled />
@@ -46,10 +54,20 @@ export default function Profile() {
             <div style={{ fontSize: '0.85rem', color: 'var(--color-muted)' }}>Receive updates when your tickets change status.</div>
           </div>
           <button 
-            className={`btn ${notificationsEnabled ? 'btn-primary' : 'btn-ghost'}`}
+            className="btn"
             onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+            style={{
+              background: notificationsEnabled ? '#10B981' : '#F1F5F9',
+              color: notificationsEnabled ? '#fff' : '#64748B',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s'
+            }}
           >
-            {notificationsEnabled ? 'Enabled' : 'Disabled'}
+            {notificationsEnabled ? '✓ Enabled' : 'Disabled'}
           </button>
         </div>
 

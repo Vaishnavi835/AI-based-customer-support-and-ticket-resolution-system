@@ -192,6 +192,9 @@ export const usersAPI = {
 
   /** Delete a user (admin only). */
   delete: (userId) => api.delete(`/users/${userId}`),
+
+  /** Update user role (admin only). */
+  updateRole: (userId, role) => api.patch(`/users/${userId}`, { role }),
 };
 
 // ── Notifications ─────────────────────────────────────────────────────────────

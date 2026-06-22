@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, Users, BookOpen, BarChart3,
-  Settings, LogOut, ShieldAlert, PlusCircle, ChevronRight,
+  Settings, ShieldAlert, PlusCircle,
   Home, Inbox, Clock, CheckCircle, Tag, AtSign
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -15,21 +15,18 @@ export default function Sidebar({ collapsed }) {
   const panelRef = useRef(null);
   const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, height: 0, opacity: 0 });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (panelRef.current) {
-      const timer = setTimeout(() => {
-        const activeEl = panelRef.current.querySelector('.zd-panel__link.active');
-        if (activeEl) {
-          setIndicatorStyle({
-            top: activeEl.offsetTop,
-            height: activeEl.offsetHeight,
-            opacity: 1
-          });
-        } else {
-          setIndicatorStyle(prev => ({ ...prev, opacity: 0 }));
-        }
-      }, 50);
-      return () => clearTimeout(timer);
+      const activeEl = panelRef.current.querySelector('.zd-panel__link.active');
+      if (activeEl) {
+        setIndicatorStyle({
+          top: activeEl.offsetTop,
+          height: activeEl.offsetHeight,
+          opacity: 1
+        });
+      } else {
+        setIndicatorStyle(prev => ({ ...prev, opacity: 0 }));
+      }
     }
   }, [location.pathname, user?.role]);
 
@@ -40,23 +37,23 @@ export default function Sidebar({ collapsed }) {
   // Icon rail items differ per role
   const railItems = isCustomer
     ? [
-        { icon: Home, to: '/my-tickets', label: '🏠 Home' },
-        { icon: PlusCircle, to: '/my-tickets/new', label: '➕ New Ticket' },
-        { icon: Clock, to: '/my-tickets/history', label: '⏱ History' },
+        { icon: Home, to: '/my-tickets', label: 'Home' },
+        { icon: PlusCircle, to: '/my-tickets/new', label: 'New Ticket' },
+        { icon: Clock, to: '/my-tickets/history', label: 'History' },
       ]
     : isAgent
     ? [
-        { icon: Inbox, to: '/agent-dashboard', label: '📥 Inbox' },
-        { icon: Ticket, to: '/tickets', label: '🎫 Tickets' },
-        { icon: ShieldAlert, to: '/escalations', label: '🚨 Escalations' },
-        { icon: BarChart3, to: '/reports', label: '📊 Reports' },
+        { icon: Inbox, to: '/agent-dashboard', label: 'Inbox' },
+        { icon: Ticket, to: '/tickets', label: 'Tickets' },
+        { icon: ShieldAlert, to: '/escalations', label: 'Escalations' },
+        { icon: BarChart3, to: '/reports', label: 'Reports' },
       ]
     : [
-        { icon: LayoutDashboard, to: '/dashboard', label: '🏠 Dashboard' },
-        { icon: Ticket, to: '/tickets', label: '🎫 Tickets' },
-        { icon: Users, to: '/users', label: '👥 Users' },
-        { icon: BookOpen, to: '/knowledge-base', label: '📚 Knowledge Base' },
-        { icon: BarChart3, to: '/reports', label: '📊 Reports' },
+        { icon: LayoutDashboard, to: '/dashboard', label: 'Dashboard' },
+        { icon: Ticket, to: '/tickets', label: 'Tickets' },
+        { icon: Users, to: '/users', label: 'Users' },
+        { icon: BookOpen, to: '/knowledge-base', label: 'Knowledge Base' },
+        { icon: BarChart3, to: '/reports', label: 'Reports' },
       ];
 
   return (
@@ -80,9 +77,9 @@ export default function Sidebar({ collapsed }) {
 
         {/* Bottom: settings + avatar */}
         <div className="zd-rail__bottom">
-          <NavLink to="/settings" className="zd-rail__link" title="⚙ Settings">
+          <NavLink to="/settings" className="zd-rail__link" title="Settings">
             <Settings size={20} />
-            <span className="zd-rail__label">⚙ Settings</span>
+            <span className="zd-rail__label">Settings</span>
           </NavLink>
           <button
             className="zd-rail__avatar"
@@ -125,7 +122,7 @@ export default function Sidebar({ collapsed }) {
       {/* ── Secondary Panel (context nav) ─────────────────── */}
       <div className="zd-panel" ref={panelRef} style={{ position: 'relative' }}>
         <div className="zd-panel__brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ color: '#818CF8', fontSize: '18px' }}>✦</span>
+          <span style={{ color: '#504e51ac', fontSize: '18px' }}>✦</span>
           <span>SupportAI</span>
         </div>
 
@@ -136,8 +133,8 @@ export default function Sidebar({ collapsed }) {
           right: 0,
           height: `${indicatorStyle.height}px`,
           top: `${indicatorStyle.top}px`,
-          background: 'rgba(99, 102, 241, 0.12)',
-          borderLeft: '3px solid #6366F1',
+          background: 'rgba(67, 67, 75, 0.12)',
+          borderLeft: '3px solid #1e1921',
           transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
           pointerEvents: 'none',
           opacity: indicatorStyle.opacity,

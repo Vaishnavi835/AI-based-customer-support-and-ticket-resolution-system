@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
-import { Ticket, Inbox, ChevronRight, Filter, Search } from "lucide-react";
+import { Ticket, Inbox, ChevronRight, Search } from "lucide-react";
 import { useWebSocketEvent } from "../context/WebSocketContext";
+import { SkeletonTableRow } from "../components/SkeletonCard";
 
 const STATUS_CONFIG = {
   open:      { color: "#475569", bg: "#F1F5F9", label: "Open" },
@@ -134,8 +135,21 @@ export default function TicketList() {
                 fontSize: '12px', fontWeight: '600', transition: 'all 0.15s',
                 background: statusFilter === f ? '#475569' : '#F3F4F6',
                 color: statusFilter === f ? '#fff' : '#374151',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6.5px'
               }}>
-                {f === 'all' ? 'All' : STATUS_CONFIG[f]?.label}
+                <span>{f === 'all' ? 'All' : STATUS_CONFIG[f]?.label}</span>
+                <span style={{
+                  padding: '1.5px 6.5px',
+                  borderRadius: '99px',
+                  fontSize: '10.5px',
+                  fontWeight: '700',
+                  background: statusFilter === f ? 'rgba(255, 255, 255, 0.22)' : '#E2E8F0',
+                  color: statusFilter === f ? '#fff' : '#475569'
+                }}>
+                  {f === 'all' ? tickets.length : tickets.filter(t => t.status === f).length}
+                </span>
               </button>
             ))}
           </div>
@@ -152,7 +166,9 @@ export default function TicketList() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} style={{ padding: '48px', textAlign: 'center', color: '#9CA3AF' }}>Loading tickets...</td></tr>
+              [1, 2, 3, 4, 5].map(i => (
+                <SkeletonTableRow key={i} cols={6} />
+              ))
             ) : filtered.length === 0 ? (
               <tr><td colSpan={6} style={{ padding: '48px', textAlign: 'center', color: '#9CA3AF' }}>
                 <Inbox size={28} style={{ display: 'block', margin: '0 auto 10px' }} />
@@ -165,7 +181,7 @@ export default function TicketList() {
                 </td>
                 <td style={{ padding: '14px 20px' }}>
                   <Link to={`/tickets/${ticket.id}`} style={{ fontWeight: '600', color: '#0F172A', fontSize: '14px', textDecoration: 'none' }}>
-                    {ticket.title}
+                    {ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : ""}
                   </Link>
                 </td>
                 <td style={{ padding: '14px 20px' }}><StatusPill status={ticket.status} /></td>

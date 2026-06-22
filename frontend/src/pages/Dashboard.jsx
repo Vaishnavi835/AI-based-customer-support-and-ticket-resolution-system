@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -63,7 +63,7 @@ function MiniBar({ label, value, max, color }) {
         <span style={{ color: '#374151', fontWeight: '600' }}>{label}</span>
         <span style={{ color: '#6B7280', fontWeight: '500' }}>{value} <span style={{ fontSize: '11px', color: '#9CA3AF' }}>({pct}%)</span></span>
       </div>
-      <div style={{ height: '8px', background: '#F3F4F6', borderRadius: '99px', overflow: 'hidden' }}>
+      <div style={{ height: '8px', background: 'rgb(243, 244, 246)', borderRadius: '99px', overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '99px', transition: 'width 0.6s ease' }} />
       </div>
     </div>
@@ -74,17 +74,15 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("inboxes");
 
-  const loadStats = () => {
-    setLoading(true);
+  const loadStats = useCallback(() => {
     ticketsAPI.stats()
       .then((res) => setStats(res.data))
       .catch(() => setStats({ total: 154, open: 42, pending: 18, escalated: 12, resolved: 82, closed: 64, high_priority: 15 }))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(() => { loadStats(); }, []);
+  useEffect(() => { loadStats(); }, [loadStats]);
 
   const total = stats?.total || 0;
 
@@ -99,7 +97,7 @@ export default function Dashboard() {
             Good morning, {user?.name?.split(' ')[0]}! Here's what's happening across your support platform today.
           </p>
         </div>
-        <button onClick={loadStats} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', border: '1.5px solid #E4E7EC', borderRadius: '10px', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#374151', transition: 'border-color 0.15s' }}>
+        <button onClick={() => { setLoading(true); loadStats(); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', border: '1.5px solid #E4E7EC', borderRadius: '10px', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#374151', transition: 'border-color 0.15s' }}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
@@ -184,7 +182,7 @@ export default function Dashboard() {
               onMouseLeave={e => e.currentTarget.style.background = ''}
             >
               <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: item.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.color, fontWeight: '800', fontSize: '13px', flexShrink: 0 }}>
-                {item.actor.charAt(0)}
+                {item.actor.charAt(0).toUpperCase()}
               </div>
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: '14px', color: '#0F172A', fontWeight: '600' }}>{item.actor} </span>

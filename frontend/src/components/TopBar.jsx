@@ -1,14 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell, Sun, Moon, User, Menu } from 'lucide-react';
+import { Search, Bell, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { notificationsAPI } from '../api/services';
 import { useWebSocketEvent } from '../context/WebSocketContext';
 
+const formatTime = (isoString) => {
+  if (!isoString) return '';
+  const m = Math.floor((Date.now() - new Date(isoString)) / 60_000);
+  if (m < 1) return 'Just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+};
+
 export default function TopBar({ title, onToggleSidebar }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
 
@@ -47,15 +56,6 @@ export default function TopBar({ title, onToggleSidebar }) {
     }
   };
 
-  const formatTime = (isoString) => {
-    if (!isoString) return '';
-    const m = Math.floor((Date.now() - new Date(isoString)) / 60_000);
-    if (m < 1) return 'Just now';
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  };
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
@@ -91,10 +91,6 @@ export default function TopBar({ title, onToggleSidebar }) {
 
       {/* Right: Actions */}
       <div className="topbar__right">
-        {/* Theme toggle */}
-        <button className="topbar__icon-btn" onClick={() => setDarkMode(!darkMode)} title="Toggle theme">
-          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
 
         {/* Notifications */}
         <div style={{ position: 'relative' }}>

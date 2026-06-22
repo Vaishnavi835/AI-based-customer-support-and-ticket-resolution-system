@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import CustomCaptcha from "../components/CustomCaptcha";
@@ -356,8 +356,8 @@ export default function Login() {
             <button
               id="btn-sign-in"
               type="submit"
-              className="register-submit register-submit--premium"
-              disabled={loading || !captchaOk}
+              className={`register-submit register-submit--premium ${captchaOk && email && password ? "register-submit--indigo" : ""}`}
+              disabled={loading || !captchaOk || !email || !password}
             >
               {loading ? "Signing in…" : <>Sign In <span className="btn-arrow">→</span></>}
             </button>

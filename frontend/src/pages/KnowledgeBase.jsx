@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
 import { BookOpen, FilePlus, Search, Edit3, Trash2 } from "lucide-react";
 
 export default function KnowledgeBase() {
-  const { user } = useAuth();
   const [articles, setArticles] = useState([
     { id: 1, title: "How to reset your password", category: "Account", status: "Published", date: "2026-06-12" },
     { id: 2, title: "Understanding Billing Cycles", category: "Billing", status: "Draft", date: "2026-06-15" },
@@ -74,6 +72,7 @@ export default function KnowledgeBase() {
       ) : (
         <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 2px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
           <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Articles Database</h3>
             <div style={{ position: 'relative', width: '300px' }}>
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <input 

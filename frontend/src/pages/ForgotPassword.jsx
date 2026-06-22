@@ -36,7 +36,7 @@ export default function ForgotPassword() {
       // Simulate API call to send recovery email
       await new Promise((resolve) => setTimeout(resolve, 1200));
       setStep(2);
-    } catch (err) {
+    } catch {
       setError("Failed to send recovery code. Please try again.");
     } finally {
       setLoading(false);
@@ -106,7 +106,7 @@ export default function ForgotPassword() {
       // Simulate API verification call
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setStep(3);
-    } catch (err) {
+    } catch {
       setError("Invalid code. Please verify and try again.");
     } finally {
       setLoading(false);
@@ -136,7 +136,7 @@ export default function ForgotPassword() {
       setTimeout(() => {
         navigate("/login");
       }, 5000);
-    } catch (err) {
+    } catch {
       setError("Failed to reset password. Please try again.");
     } finally {
       setLoading(false);

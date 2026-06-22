@@ -1,15 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Search, UserPlus, Shield, UserCheck, User, MoreVertical, Mail } from "lucide-react";
-
-const MOCK_USERS = [
-  { id: 1, name: "Admin Setup", email: "admin@example.com", role: "admin", status: "online", created_at: "2026-06-01" },
-  { id: 2, name: "John Agent", email: "agent@support.com", role: "support_agent", status: "away", created_at: "2026-06-05" },
-  { id: 3, name: "Jane Customer", email: "jane@customer.com", role: "customer", status: "online", created_at: "2026-06-10" },
-  { id: 4, name: "Bob Developer", email: "bob@dev.com", role: "customer", status: "offline", created_at: "2026-06-12" },
-  { id: 5, name: "Alice Escalations", email: "alice@support.com", role: "support_agent", status: "online", created_at: "2026-06-15" },
-  { id: 6, name: "Carol Admin", email: "carol@admin.com", role: "admin", status: "offline", created_at: "2026-06-16" },
-];
+import { Search, UserPlus, Shield, UserCheck, User, Mail, Trash2 } from "lucide-react";
+import { usersAPI } from "../api/services";
 
 const ROLE_CONFIG = {
   admin: { label: "Admin", color: "#7C3AED", bg: "#F5F3FF", icon: Shield },
@@ -39,15 +31,47 @@ export default function UserManagement() {
   const [roleFilter, setRoleFilter] = useState("all");
 
   useEffect(() => {
-    setTimeout(() => { setUsers(MOCK_USERS); setLoading(false); }, 500);
+    const fetchUsers = async () => {
+      try {
+        const res = await usersAPI.list();
+        const usersWithStatus = res.data.map(u => ({
+          ...u,
+          status: "offline",
+          created_at: u.created_at ? u.created_at.split("T")[0] : "N/A"
+        }));
+        setUsers(usersWithStatus);
+      } catch (err) {
+        console.error("Failed to load users:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUsers();
   }, []);
 
-  const handleRoleChange = (userId, newRole) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await usersAPI.updateRole(userId, newRole);
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    } catch (err) {
+      alert("Failed to update user role: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    try {
+      await usersAPI.delete(userId);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (err) {
+      alert("Failed to delete user: " + (err.response?.data?.detail || err.message));
+    }
   };
 
   const filtered = users.filter(u => {
-    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
+    const nameMatch = (u.name || "").toLowerCase().includes(search.toLowerCase());
+    const emailMatch = (u.email || "").toLowerCase().includes(search.toLowerCase());
+    const matchSearch = nameMatch || emailMatch;
     const matchRole = roleFilter === "all" || u.role === roleFilter;
     return matchSearch && matchRole;
   });
@@ -126,65 +150,87 @@ export default function UserManagement() {
           </div>
         </div>
 
-        {/* Table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#FAFAFA', borderBottom: '1px solid #F1F3F6' }}>
-              {['User', 'Email', 'Role', 'Status', 'Joined', 'Actions'].map(h => (
-                <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>Loading users...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>No users found.</td></tr>
-            ) : filtered.map(u => (
-              <tr key={u.id} style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#FAFBFF'}
-                onMouseLeave={e => e.currentTarget.style.background = ''}>
-                <td style={{ padding: '14px 20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#6C63FF22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', color: '#6C63FF', fontSize: '14px', flexShrink: 0 }}>
-                      {u.name.charAt(0)}
-                    </div>
-                    <span style={{ fontWeight: '600', color: '#0F172A', fontSize: '14px' }}>{u.name}</span>
-                  </div>
-                </td>
-                <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Mail size={13} /> {u.email}
-                  </div>
-                </td>
-                <td style={{ padding: '14px 20px' }}>
-                  <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value)}
-                    disabled={u.id === currentUser?.id}
-                    style={{ border: 'none', background: 'none', cursor: u.id === currentUser?.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>
-                    <option value="customer">Customer</option>
-                    <option value="support_agent">Support Agent</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                  {' '}<RolePill role={u.role} />
-                </td>
-                <td style={{ padding: '14px 20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: '#374151', fontWeight: '500' }}>
-                    <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: STATUS_DOT[u.status], flexShrink: 0, boxShadow: u.status === 'online' ? '0 0 0 3px #D1FAE5' : 'none' }} />
-                    {u.status.charAt(0).toUpperCase() + u.status.slice(1)}
-                  </div>
-                </td>
-                <td style={{ padding: '14px 20px', fontSize: '13px', color: '#9CA3AF' }}>{u.created_at}</td>
-                <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                  <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', padding: '4px', borderRadius: '6px', transition: 'background 0.1s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                    <MoreVertical size={17} />
-                  </button>
-                </td>
+        {/* Table wrapper for horizontal scroll */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#FAFAFA', borderBottom: '1px solid #F1F3F6' }}>
+                {['User', 'Email', 'Role', 'Status', 'Joined', 'Actions'].map(h => (
+                  <th key={h} style={{
+                    padding: '12px 20px',
+                    textAlign: h === 'Actions' ? 'right' : 'left',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    color: '#9CA3AF',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    width: h === 'Actions' ? '120px' : 'auto',
+                    minWidth: h === 'Actions' ? '120px' : 'auto'
+                  }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>Loading users...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>No users found.</td></tr>
+              ) : filtered.map(u => (
+                <tr key={u.id} style={{ borderBottom: '1px solid #F9FAFB', transition: 'background 0.1s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#FAFBFF'}
+                  onMouseLeave={e => e.currentTarget.style.background = ''}>
+                  <td style={{ padding: '14px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#6C63FF22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', color: '#6C63FF', fontSize: '14px', flexShrink: 0 }}>
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span style={{ fontWeight: '600', color: '#0F172A', fontSize: '14px' }}>{u.name}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '14px 20px', fontSize: '13px', color: '#64748B' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Mail size={13} /> {u.email}
+                    </div>
+                  </td>
+                  <td style={{ padding: '14px 20px' }}>
+                    <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value)}
+                      disabled={u.id === currentUser?.id}
+                      style={{ border: 'none', background: 'none', cursor: u.id === currentUser?.id ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: '13px' }}>
+                      <option value="customer">Customer</option>
+                      <option value="support_agent">Support Agent</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    {' '}<RolePill role={u.role} />
+                  </td>
+                  <td style={{ padding: '14px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', color: '#374151', fontWeight: '500' }}>
+                      <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: STATUS_DOT[u.status], flexShrink: 0, boxShadow: u.status === 'online' ? '0 0 0 3px #D1FAE5' : 'none' }} />
+                      {u.status.charAt(0).toUpperCase() + u.status.slice(1)}
+                    </div>
+                  </td>
+                  <td style={{ padding: '14px 20px', fontSize: '13px', color: '#9CA3AF' }}>{u.created_at}</td>
+                  <td style={{ padding: '14px 20px', textAlign: 'right', width: '120px', minWidth: '120px' }}>
+                    {u.id !== currentUser?.id && (
+                      <button
+                        onClick={() => handleDeleteUser(u.id)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444',
+                          padding: '6px', borderRadius: '6px', transition: 'background 0.15s',
+                          display: 'inline-flex', alignItems: 'center', gap: '4px'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        title="Delete User"
+                      >
+                        <Trash2 size={15} /> Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

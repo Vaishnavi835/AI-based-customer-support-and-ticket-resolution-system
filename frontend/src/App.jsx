@@ -18,11 +18,11 @@
  */
 
 import { useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { ThemeProvider } from "./components/ThemeSwitcher";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AuthProvider } from "./context/AuthProvider";
+import { useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Navbar from "./components/Navbar";
 
 // Pages
 import Login        from "./pages/Login";
@@ -57,8 +57,22 @@ function HomeRedirect() {
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 
+const PAGE_TITLES = {
+  "/dashboard": "Dashboard",
+  "/agent-dashboard": "Agent Dashboard",
+  "/tickets": "All Tickets",
+  "/escalations": "Escalations",
+  "/knowledge-base": "Knowledge Base",
+  "/users": "User Management",
+  "/my-tickets": "My Tickets",
+  "/my-tickets/new": "New Ticket",
+  "/my-tickets/history": "Ticket History",
+  "/profile": "Profile",
+};
+
 function AppRoutes() {
   const { user } = useAuth();
+  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem("sidebar-collapsed") === "true"
   );
@@ -69,12 +83,15 @@ function AppRoutes() {
       return !prev;
     });
   };
-  
+
+  const pageTitle = PAGE_TITLES[location.pathname] 
+    || (location.pathname.startsWith("/tickets/") ? "Ticket Detail" : "Dashboard");
+
   return (
     <div className={user ? "zd-layout" : ""}>
       {user && <Sidebar collapsed={sidebarCollapsed} />}
       <main className={user ? "zd-main" : ""} style={{ backgroundColor: user ? '#F8FAFC' : 'inherit' }}>
-        {user && <TopBar onToggleSidebar={toggleSidebar} />}
+        {user && <TopBar onToggleSidebar={toggleSidebar} title={pageTitle} />}
         <div className={user ? "page-body" : ""}>
         <Routes>
           {/* Public routes */}
@@ -165,6 +182,7 @@ function AppRoutes() {
 }
 
 import { WebSocketProvider } from "./context/WebSocketContext";
+import { ToastProvider } from "./context/ToastProvider";
 
 export default function App() {
   return (
@@ -172,7 +190,9 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <WebSocketProvider>
-            <AppRoutes />
+            <ToastProvider>
+              <AppRoutes />
+            </ToastProvider>
           </WebSocketProvider>
         </AuthProvider>
       </ThemeProvider>
