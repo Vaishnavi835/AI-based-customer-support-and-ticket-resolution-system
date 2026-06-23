@@ -43,6 +43,21 @@ def make_sample_doc(doc_id="kb_001"):
 # ═════════════════════════════════════════════════════════════════════════════
 # Day 19: RAG pipeline unit tests
 # ═════════════════════════════════════════════════════════════════════════════
+def restore_rag_state():
+    import app.services.rag_service as rag
+    from app.knowledge.sample_docs import KNOWLEDGE_BASE
+    rag.faiss_index = None
+    rag.embedding_model = None
+    rag.doc_store = [
+        {
+            "id":       d["id"],
+            "title":    d["title"],
+            "category": d["category"],
+            "content":  d["content"],
+        }
+        for d in KNOWLEDGE_BASE
+    ]
+
 
 class TestThresholdFiltering:
     """search_knowledge_base should filter results above the distance threshold."""
@@ -81,8 +96,7 @@ class TestThresholdFiltering:
         assert len(results) == 2
 
         # Cleanup
-        rag.faiss_index = rag.embedding_model = None
-        rag.doc_store   = []
+        restore_rag_state()
 
     def test_results_above_threshold_are_filtered(self):
         """Docs with distance above threshold must be excluded."""
@@ -115,8 +129,7 @@ class TestThresholdFiltering:
         assert len(results) == 1
         assert results[0]["id"] == "kb_001"
 
-        rag.faiss_index = rag.embedding_model = None
-        rag.doc_store   = []
+        restore_rag_state()
 
     def test_strict_threshold_returns_nothing(self):
         """Very strict threshold (0.1) should filter out everything."""
@@ -143,8 +156,7 @@ class TestThresholdFiltering:
         )
         assert results == []
 
-        rag.faiss_index = rag.embedding_model = None
-        rag.doc_store   = []
+        restore_rag_state()
 
 
 class TestConversationHistory:

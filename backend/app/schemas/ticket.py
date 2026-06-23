@@ -74,7 +74,10 @@ def is_valid_transition(current: str, new: str) -> bool:
 class TicketCreate(BaseModel):
     title:       str = Field(..., min_length=3, max_length=200)
     description: str = Field(..., min_length=10)
-    priority:    Priority = Priority.medium
+
+    model_config = {
+        "extra": "forbid"
+    }
 
 
 class TicketUpdate(BaseModel):
@@ -88,6 +91,11 @@ class TicketAssign(BaseModel):
 class TicketReassign(BaseModel):
     assigned_to: str    
     reason:      str    
+
+
+class TicketUpdateCC(BaseModel):
+    add_agent_id: Optional[str] = None
+    remove_agent_id: Optional[str] = None
 
 
 class TicketHistoryEntry(BaseModel):
@@ -111,8 +119,10 @@ class TicketResponse(BaseModel):
     status:      str
     user_id:     str
     assigned_to: Optional[str] = None
+    cc_agents:   List[str] = []
     created_at:  datetime
     updated_at:  Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
     history:     Optional[List[TicketHistoryEntry]] = []
 
 
@@ -134,6 +144,7 @@ class TicketSearchParams(BaseModel):
     assigned_to:   Optional[str] = None
     created_after: Optional[datetime] = None
     created_before: Optional[datetime] = None
+    resolved_after: Optional[datetime] = None
     sort_by:       str = "created_at"     # created_at | priority | status
     sort_order:    str = "desc"           # asc | desc
     page:          int = Field(1,  ge=1)

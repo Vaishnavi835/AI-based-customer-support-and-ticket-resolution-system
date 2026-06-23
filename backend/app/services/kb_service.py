@@ -71,28 +71,60 @@ async def get_all_kb_docs(category: str = None) -> list:
     Unlike get_knowledge_base() in rag_service (which reads from in-memory
     doc_store), this always reads the live database — used by admin list routes.
     """
-    col   = get_db().knowledge_col
-    query = {}
-    if category:
-        query["category"] = category
+    try:
+        col = get_db().knowledge_col
+        if col is not None:
+            query = {}
+            if category:
+                query["category"] = category
 
-    docs = await col.find(query).to_list(1000)
-    for d in docs:
-        d["id"] = d.pop("_id")
+            docs = await col.find(query).to_list(1000)
+            for d in docs:
+                d["id"] = d.pop("_id")
+            return docs
+    except Exception as e:
+        logger.warning(f"KB: MongoDB query failed for get_all_kb_docs ({e}) — falling back to static KNOWLEDGE_BASE")
+
+    # Fallback to static KNOWLEDGE_BASE
+    docs = []
+    for doc in KNOWLEDGE_BASE:
+        if category and doc.get("category") != category:
+            continue
+        docs.append({
+            "id": doc["id"],
+            "category": doc["category"],
+            "title": doc["title"],
+            "content": doc["content"],
+        })
     return docs
 
 
 async def get_kb_doc_by_id(doc_id: str) -> dict:
     """Fetch a single KB document by ID. Raises 404 if not found."""
-    col = get_db().knowledge_col
-    doc = await col.find_one({"_id": doc_id})
-    if not doc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"KB document not found: {doc_id}"
-        )
-    doc["id"] = doc.pop("_id")
-    return doc
+    try:
+        col = get_db().knowledge_col
+        if col is not None:
+            doc = await col.find_one({"_id": doc_id})
+            if doc:
+                doc["id"] = doc.pop("_id")
+                return doc
+    except Exception as e:
+        logger.warning(f"KB: MongoDB query failed for get_kb_doc_by_id ({e}) — falling back to static KNOWLEDGE_BASE")
+
+    # Fallback to static KNOWLEDGE_BASE
+    for doc in KNOWLEDGE_BASE:
+        if doc.get("id") == doc_id:
+            return {
+                "id": doc["id"],
+                "category": doc["category"],
+                "title": doc["title"],
+                "content": doc["content"],
+            }
+    
+    raise HTTPException(
+        status_code=404,
+        detail=f"KB document not found: {doc_id}"
+    )
 
 
 # ── Write (each one triggers reindex) ────────────────────────────────────────

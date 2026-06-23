@@ -30,8 +30,20 @@ from app.services.escalation_service import (
 )
 from datetime import datetime, timezone
 import uuid
+from app.services.websocket_manager import manager
 
 router = APIRouter(tags=["chat"])
+
+async def notify_chat_updated(chat_id: str, ticket_id: str, customer_id: str):
+    try:
+        event = {"type": "chat_updated", "chat_id": chat_id, "ticket_id": ticket_id}
+        # Send to customer
+        await manager.send_personal_message(event, customer_id)
+        # Send to all agents/admins
+        await manager.broadcast_to_roles(event, ["admin", "support_agent"])
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to send chat update: {e}")
 
 
 async def get_ai_response(
@@ -100,16 +112,11 @@ async def start_chat(
         "rag_enabled": is_rag_ready(),
         "messages": [
             {
-                "role":      "user",
-                "content":   data.message,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
-            {
-                "role":      "assistant",
-                "content":   ai_response,
+                "prompt":    data.message,
+                "response":  ai_response,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "rag_used":  is_rag_ready(),
-            },
+            }
         ],
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
@@ -122,6 +129,8 @@ async def start_chat(
             ticket_id=data.ticket_id,
             error_msg=escalated_on_start,
         )
+
+    await notify_chat_updated(doc["_id"], data.ticket_id, current_user["id"])
 
     return {
         "message":    "Chat started",
@@ -174,18 +183,18 @@ async def add_message(
     is_escalated   = chat.get("escalated", False)
     assigned_agent = chat.get("agent_id")
     now            = datetime.now(timezone.utc).isoformat()
-    new_messages   = [{"role": "user", "content": msg.content, "timestamp": now}]
-
     # ── Branch 1: escalated + agent has taken over ────────────────────────────
     if is_escalated and assigned_agent:
         if role == Role.customer:
+            new_interaction = {"prompt": msg.content, "response": None, "timestamp": now}
             await col.update_one(
                 {"_id": chat_id},
                 {
-                    "$push": {"messages": {"$each": new_messages}},
+                    "$push": {"messages": new_interaction},
                     "$set":  {"updated_at": datetime.now(timezone.utc)},
                 }
             )
+            await notify_chat_updated(chat_id, chat["ticket_id"], chat["user_id"])
             return {
                 "message":    "Message queued for agent",
                 "ai_response": None,
@@ -194,8 +203,8 @@ async def add_message(
             }
 
         agent_message = {
-            "role":      "agent",
-            "content":   msg.content,
+            "prompt":    None,
+            "response":  msg.content,
             "agent_id":  current_user["id"],
             "timestamp": now,
         }
@@ -206,17 +215,20 @@ async def add_message(
                 "$set":  {"updated_at": datetime.now(timezone.utc)},
             }
         )
+        await notify_chat_updated(chat_id, chat["ticket_id"], chat["user_id"])
         return {"message": "Agent reply added", "ai_response": None, "escalated": True}
 
     # ── Branch 2: escalated but no agent yet ─────────────────────────────────
     if is_escalated and not assigned_agent:
+        new_interaction = {"prompt": msg.content, "response": None, "timestamp": now}
         await col.update_one(
             {"_id": chat_id},
             {
-                "$push": {"messages": {"$each": new_messages}},
+                "$push": {"messages": new_interaction},
                 "$set":  {"updated_at": datetime.now(timezone.utc)},
             }
         )
+        await notify_chat_updated(chat_id, chat["ticket_id"], chat["user_id"])
         return {
             "message":    "Your message has been received. A support agent will assist you shortly.",
             "ai_response": None,
@@ -224,7 +236,14 @@ async def add_message(
         }
 
     # ── Branch 3: normal flow — check triggers then RAG ──────────────────────
-    history_for_ai = [{"role": m["role"], "content": m["content"]} for m in history]
+    history_for_ai = []
+    for m in history:
+        if m.get("prompt"):
+            history_for_ai.append({"role": "user", "content": m.get("prompt")})
+        if m.get("response"):
+            role_type = "agent" if m.get("agent_id") else "assistant"
+            history_for_ai.append({"role": role_type, "content": m.get("response")})
+            
     history_for_ai.append({"role": "user", "content": msg.content})
 
     escalation_reason = detect_escalation_reason(
@@ -234,10 +253,11 @@ async def add_message(
     )
 
     if escalation_reason:
+        new_interaction = {"prompt": msg.content, "response": None, "timestamp": now}
         await col.update_one(
             {"_id": chat_id},
             {
-                "$push": {"messages": {"$each": new_messages}},
+                "$push": {"messages": new_interaction},
                 "$set":  {"updated_at": datetime.now(timezone.utc)},
             }
         )
@@ -248,6 +268,7 @@ async def add_message(
             triggered_by="system",
             note=f"Auto-detected: {escalation_reason.value}",
         )
+        await notify_chat_updated(chat_id, chat["ticket_id"], chat["user_id"])
         return {
             "message":       "Your request has been escalated to a human agent.",
             "ai_response":   None,
@@ -264,19 +285,20 @@ async def add_message(
             ticket_context=ticket,
         )
 
-        assistant_message = {
-            "role":      "assistant",
-            "content":   ai_response,
+        interaction = {
+            "prompt":    msg.content,
+            "response":  ai_response,
             "timestamp": now,
             "rag_used":  is_rag_ready(),
         }
         await col.update_one(
             {"_id": chat_id},
             {
-                "$push": {"messages": {"$each": new_messages + [assistant_message]}},
+                "$push": {"messages": interaction},
                 "$set":  {"updated_at": datetime.now(timezone.utc)},
             }
         )
+        await notify_chat_updated(chat_id, chat["ticket_id"], chat["user_id"])
         return {
             "message":     "Message added",
             "ai_response": ai_response,
@@ -285,10 +307,11 @@ async def add_message(
         }
 
     except Exception as e:
+        new_interaction = {"prompt": msg.content, "response": None, "timestamp": now}
         await col.update_one(
             {"_id": chat_id},
             {
-                "$push": {"messages": {"$each": new_messages}},
+                "$push": {"messages": new_interaction},
                 "$set":  {"updated_at": datetime.now(timezone.utc)},
             }
         )
@@ -297,6 +320,7 @@ async def add_message(
             ticket_id=chat["ticket_id"],
             error_msg=str(e),
         )
+        await notify_chat_updated(chat_id, chat["ticket_id"], chat["user_id"])
         return {
             "message":     fallback["ai_response"],
             "ai_response": fallback["ai_response"],
@@ -386,10 +410,13 @@ async def get_chat_summary(
     if not chat:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
-    history = [
-        {"role": m["role"], "content": m["content"]}
-        for m in chat.get("messages", [])
-    ]
+    history = []
+    for m in chat.get("messages", []):
+        if m.get("prompt"):
+            history.append({"role": "user", "content": m.get("prompt")})
+        if m.get("response"):
+            role_type = "agent" if m.get("agent_id") else "assistant"
+            history.append({"role": role_type, "content": m.get("response")})
     summary = await summarize_conversation(history)
 
     return {

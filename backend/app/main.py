@@ -9,6 +9,8 @@ from app.routes.escalation import router as escalation_router
 from app.services.rag_service import initialize_rag
 from app.routes.rag import router as rag_router
 from app.services.kb_service import seed_knowledge_base 
+from app.routes.websocket import router as websocket_router
+from app.routes.notifications import router as notifications_router 
 
 import logging
 
@@ -34,6 +36,21 @@ app = FastAPI(
     description="FastAPI + MongoDB backend for AI customer support",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -71,6 +88,8 @@ app.include_router(tickets_router, prefix="/tickets")
 app.include_router(chat_router,    prefix="/chat")
 app.include_router(escalation_router, prefix="/escalation")
 app.include_router(rag_router, prefix="/rag")
+app.include_router(websocket_router, prefix="/ws")
+app.include_router(notifications_router, prefix="/notifications")
 @app.get("/")
 async def root():
     return {"status": "running", "app": "AI Support System", "version": "1.0.0", "docs": "/docs"}

@@ -9,16 +9,21 @@ This separates concerns:
 """
 
 from fastapi import HTTPException
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from app.database.connection import get_db
 from app.schemas.ticket import (
-    TicketCreate, TicketUpdate, TicketAssign, TicketReassign,
+    TicketCreate, TicketUpdate, TicketAssign, TicketReassign, TicketUpdateCC,
     Status, Priority, is_valid_transition, VALID_TRANSITIONS,
 )
 from app.services.ai_service import classify_ticket
 from pymongo import ASCENDING, DESCENDING
+from app.services.websocket_manager import manager
+from app.services.notification_service import create_notification, notify_agents_and_admins
 
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _now():
     return datetime.now(timezone.utc)
@@ -438,6 +443,7 @@ async def search_tickets(
     sort_order: str = "desc",
     page: int = 1,
     limit: int = 10,
+    resolved_after: datetime = None,
 ) -> dict:
     """
     Advanced ticket search with:
@@ -485,8 +491,12 @@ async def search_tickets(
     if assigned_to:
         query["assigned_to"] = assigned_to
 
-    # --- 6. Sorting ---
-    allowed_sort_fields = ["created_at", "priority", "status", "updated_at"]
+    # --- 6. Filter by resolved_after ---
+    if resolved_after:
+        query["resolved_at"] = {"$gte": resolved_after}
+
+    # --- 7. Sorting ---
+    allowed_sort_fields = ["created_at", "priority", "status", "updated_at", "resolved_at"]
     if sort_by not in allowed_sort_fields:
         sort_by = "created_at"
 
@@ -514,7 +524,157 @@ async def search_tickets(
             "status":         status,
             "priority":       priority,
             "assigned_to":    assigned_to,
+            "resolved_after": resolved_after,
             "sort_by":        sort_by,
             "sort_order":     sort_order,
         }
+    }
+
+
+async def update_ticket_cc(ticket_id: str, data: TicketUpdateCC, changed_by: str, requester_id: str, requester_role: str) -> dict:
+    """
+    Add or remove an agent from a ticket's CC list.
+    Only admins or the assigned agent can modify CCs.
+    """
+    col = get_db().tickets_col
+    ticket = await col.find_one({"_id": ticket_id})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    if requester_role != "admin" and ticket.get("assigned_to") != requester_id:
+        raise HTTPException(status_code=403, detail="Only the assigned agent or an admin can manage CCs.")
+
+    users_col = get_db().users_col
+    update_op = {"$set": {"updated_at": _now()}}
+    history_entry = None
+
+    if data.add_agent_id:
+        agent = await users_col.find_one({"_id": data.add_agent_id, "role": {"$in": ["support_agent", "admin"]}})
+        if not agent:
+            raise HTTPException(status_code=404, detail="Agent to add not found or invalid role")
+        if data.add_agent_id == ticket.get("assigned_to"):
+            raise HTTPException(status_code=400, detail="Agent is already assigned to this ticket")
+            
+        update_op["$addToSet"] = {"cc_agents": data.add_agent_id}
+        history_entry = _history_entry(changed_by, "cc_agents", "n/a", f"Added {data.add_agent_id}")
+
+    elif data.remove_agent_id:
+        update_op["$pull"] = {"cc_agents": data.remove_agent_id}
+        history_entry = _history_entry(changed_by, "cc_agents", "n/a", f"Removed {data.remove_agent_id}")
+
+    else:
+        raise HTTPException(status_code=400, detail="Must provide add_agent_id or remove_agent_id")
+
+    if history_entry:
+        update_op.setdefault("$push", {})["history"] = history_entry
+
+    await col.update_one({"_id": ticket_id}, update_op)
+    
+    # Broadcast and notify
+    try:
+        updated_ticket = await get_ticket_by_id(ticket_id)
+        event = {"type": "ticket_updated", "ticket": _format_ticket_for_ws(updated_ticket)}
+        await manager.broadcast_to_roles(event, ["admin", "support_agent"])
+        
+        if data.add_agent_id:
+            await create_notification(data.add_agent_id, f"You were CC'd on Ticket #{ticket_id[:8]}.", ticket_id)
+            cc_event = {"type": "ticket_cc_added", "ticket_id": ticket_id}
+            await manager.send_personal_message(cc_event, data.add_agent_id)
+    except Exception as e:
+        logger.error(f"Failed to broadcast CC update: {e}")
+
+    return {"message": "Ticket CC list updated"}
+
+
+async def get_cc_tickets(agent_id: str) -> list:
+    """Fetch all tickets where the agent is CC'd."""
+    col = get_db().tickets_col
+    tickets = await col.find({"cc_agents": agent_id}).sort("updated_at", DESCENDING).to_list(100)
+    for t in tickets:
+        t["id"] = t.pop("_id")
+    return tickets
+
+
+async def get_cc_tickets_count(agent_id: str) -> int:
+    """Get the count of tickets where the agent is CC'd."""
+    col = get_db().tickets_col
+    return await col.count_documents({"cc_agents": agent_id})
+
+
+async def get_completed_recent_tickets(days: int = 30) -> list:
+    """Get tickets resolved or closed in the last N days."""
+    col = get_db().tickets_col
+    resolved_after = _now() - timedelta(days=days)
+    query = {
+        "status": {"$in": ["resolved", "closed"]},
+        "resolved_at": {"$gte": resolved_after}
+    }
+    tickets = await col.find(query).sort("resolved_at", DESCENDING).to_list(100)
+    for t in tickets:
+        t["id"] = t.pop("_id")
+    return tickets
+
+
+async def get_ticket_analytics(days: int = 30) -> dict:
+    """
+    Get analytics data for reports (Admin and Support Agents).
+    Returns volume trends, category distribution, status distribution, and priorities.
+    """
+    col = get_db().tickets_col
+    cutoff_date = _now() - timedelta(days=days)
+    
+    # 1. Volume Trend (Tickets opened vs resolved per day)
+    trend_pipeline = [
+        {"$match": {"created_at": {"$gte": cutoff_date}}},
+        {
+            "$group": {
+                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+                "opened": {"$sum": 1},
+                "resolved": {
+                    "$sum": {"$cond": [{"$in": ["$status", ["resolved", "closed"]]}, 1, 0]}
+                }
+            }
+        },
+        {"$sort": {"_id": ASCENDING}}
+    ]
+    trend_cursor = col.aggregate(trend_pipeline)
+    trend_data = await trend_cursor.to_list(100)
+    
+    trend = [{"date": doc["_id"], "opened": doc["opened"], "resolved": doc["resolved"]} for doc in trend_data]
+    date_map = {item["date"]: item for item in trend}
+    filled_trend = []
+    for i in range(days + 1):
+        d_str = (cutoff_date + timedelta(days=i)).strftime("%Y-%m-%d")
+        filled_trend.append(date_map.get(d_str, {"date": d_str, "opened": 0, "resolved": 0}))
+
+    # 2. Category Distribution
+    cat_pipeline = [
+        {"$group": {"_id": "$category", "value": {"$sum": 1}}},
+        {"$sort": {"value": DESCENDING}}
+    ]
+    cat_cursor = col.aggregate(cat_pipeline)
+    cat_data = await cat_cursor.to_list(100)
+    categories = [{"name": doc["_id"], "value": doc["value"]} for doc in cat_data]
+    
+    # 3. Status Distribution
+    status_pipeline = [
+        {"$group": {"_id": "$status", "value": {"$sum": 1}}}
+    ]
+    status_cursor = col.aggregate(status_pipeline)
+    status_data = await status_cursor.to_list(100)
+    statuses = [{"name": doc["_id"], "value": doc["value"]} for doc in status_data]
+
+    # 4. Priority Distribution
+    priority_pipeline = [
+        {"$group": {"_id": "$priority", "value": {"$sum": 1}}}
+    ]
+    priority_cursor = col.aggregate(priority_pipeline)
+    priority_data = await priority_cursor.to_list(100)
+    priorities = [{"name": doc["_id"], "value": doc["value"]} for doc in priority_data]
+
+    return {
+        "trend": filled_trend,
+        "categories": categories,
+        "statuses": statuses,
+        "priorities": priorities
     }
