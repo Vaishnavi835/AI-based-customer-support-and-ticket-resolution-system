@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, Users, BookOpen, BarChart3,
@@ -6,6 +6,8 @@ import {
   Home, Inbox, Clock, CheckCircle, Tag, AtSign
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useWebSocketEvent } from '../context/WebSocketContext';
+import { ticketsAPI } from '../api/services';
 
 export default function Sidebar({ collapsed }) {
   const { user, logout } = useAuth();
@@ -14,6 +16,7 @@ export default function Sidebar({ collapsed }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const panelRef = useRef(null);
   const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, height: 0, opacity: 0 });
+  const [ccCount, setCcCount] = useState(0);
 
   useLayoutEffect(() => {
     if (panelRef.current) {
@@ -33,6 +36,25 @@ export default function Sidebar({ collapsed }) {
   const isAgent = user?.role === 'support_agent';
   const isAdmin = user?.role === 'admin';
   const isCustomer = user?.role === 'customer';
+
+  useEffect(() => {
+    if (isAgent || isAdmin) {
+      ticketsAPI.ccCount().then(res => setCcCount(res.data.count)).catch(() => {});
+    }
+  }, [isAgent, isAdmin]);
+
+  useWebSocketEvent("ticket_cc_added", () => {
+    if (isAgent || isAdmin) {
+      ticketsAPI.ccCount().then(res => setCcCount(res.data.count)).catch(() => {});
+    }
+  });
+
+  useWebSocketEvent("ticket_updated", () => {
+    if (isAgent || isAdmin) {
+      // Re-fetch in case a CC was removed or ticket status changed.
+      ticketsAPI.ccCount().then(res => setCcCount(res.data.count)).catch(() => {});
+    }
+  });
 
   // Icon rail items differ per role
   const railItems = isCustomer
@@ -57,7 +79,7 @@ export default function Sidebar({ collapsed }) {
       ];
 
   return (
-    <div className={`zd-shell ${collapsed ? 'zd-shell--collapsed' : ''}`}>
+    <div className={`zd-shell ${collapsed ? 'zd-shell--collapsed' : ''} ${isCustomer ? 'customer-sidebar' : ''}`}>
       {/* ── Icon Rail ─────────────────────────────────────── */}
       <div className="zd-rail">
         {/* Logo */}
@@ -121,10 +143,29 @@ export default function Sidebar({ collapsed }) {
 
       {/* ── Secondary Panel (context nav) ─────────────────── */}
       <div className="zd-panel" ref={panelRef} style={{ position: 'relative' }}>
-        <div className="zd-panel__brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ color: '#504e51ac', fontSize: '18px' }}>✦</span>
-          <span>SupportAI</span>
-        </div>
+        {isCustomer ? (
+          <div className="zd-panel__brand customer-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid #F1F5F9' }}>
+            <div className="customer-logo-mark" style={{
+              width: '32px',
+              height: '32px',
+              background: '#0F172A',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FBBF24',
+              fontWeight: '800',
+              fontSize: '18px',
+              boxShadow: '0 2px 4px rgba(15, 23, 42, 0.05)'
+            }}>S</div>
+            <span style={{ color: '#0F172A', fontSize: '18px', fontWeight: '800' }}>SupportAI</span>
+          </div>
+        ) : (
+          <div className="zd-panel__brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#504e51ac', fontSize: '18px' }}>✦</span>
+            <span>SupportAI</span>
+          </div>
+        )}
 
         {/* Sliding active background indicator */}
         <div className="zd-panel__indicator" style={{
@@ -143,17 +184,23 @@ export default function Sidebar({ collapsed }) {
 
         {isCustomer && (
           <>
-            <div className="zd-panel__section-label">Your work</div>
+            <div className="zd-panel__section-label">YOUR WORK</div>
             <NavLink to="/my-tickets" end className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <Home size={16} /> Home
+            </NavLink>
+            <NavLink to="/my-tickets/history" className={({ isActive }) => `zd-panel__link ${isActive && !location.search.includes('range=30') ? 'active' : ''}`}>
               <Ticket size={16} /> Tickets
             </NavLink>
             <NavLink to="/my-tickets/new" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
               <PlusCircle size={16} /> New Ticket
             </NavLink>
 
-            <div className="zd-panel__section-label" style={{ marginTop: '20px' }}>Completed work</div>
-            <NavLink to="/my-tickets/history" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+            <div className="zd-panel__section-label" style={{ marginTop: '20px' }}>COMPLETED</div>
+            <NavLink to="/my-tickets/history?range=30" className={({ isActive }) => `zd-panel__link ${isActive && location.search.includes('range=30') ? 'active' : ''}`}>
               <Clock size={16} /> Last 30 days
+            </NavLink>
+            <NavLink to="/profile" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <Settings size={16} /> Settings
             </NavLink>
           </>
         )}
@@ -172,10 +219,27 @@ export default function Sidebar({ collapsed }) {
             <NavLink to="/escalations" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
               <ShieldAlert size={16} /> Escalations
             </NavLink>
-            <div className="zd-panel__link muted"><AtSign size={16} /> CC'd</div>
+            <NavLink to="/tickets/cc" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AtSign size={16} /> CC'd</span>
+              {ccCount > 0 && (
+                <span style={{ background: '#EF4444', color: '#fff', fontSize: '11px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '10px' }}>
+                  {ccCount}
+                </span>
+              )}
+            </NavLink>
 
             <div className="zd-panel__section-label" style={{ marginTop: '20px' }}>Completed work</div>
-            <div className="zd-panel__link muted"><CheckCircle size={16} /> Last 30 days</div>
+            <NavLink to="/tickets/completed" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <CheckCircle size={16} /> Last 30 days
+            </NavLink>
+
+            <div className="zd-panel__section-label" style={{ marginTop: '20px' }}>Analytics</div>
+            <NavLink to="/reports" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <BarChart3 size={16} /> Reports
+            </NavLink>
+            <NavLink to="/statistics" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <Tag size={16} /> Ticket Statistics
+            </NavLink>
           </>
         )}
 
@@ -201,8 +265,12 @@ export default function Sidebar({ collapsed }) {
             </NavLink>
 
             <div className="zd-panel__section-label" style={{ marginTop: '20px' }}>Analytics</div>
-            <div className="zd-panel__link muted"><BarChart3 size={16} /> Reports</div>
-            <div className="zd-panel__link muted"><Tag size={16} /> Ticket Statistics</div>
+            <NavLink to="/reports" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <BarChart3 size={16} /> Reports
+            </NavLink>
+            <NavLink to="/statistics" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <Tag size={16} /> Ticket Statistics
+            </NavLink>
           </>
         )}
       </div>

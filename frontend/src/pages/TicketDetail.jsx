@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ticketsAPI, chatAPI, escalationAPI } from "../api/services";
+import { ticketsAPI, chatAPI, escalationAPI, usersAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { SkeletonCard, SkeletonChatBubble } from "../components/SkeletonCard";
-import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Sparkles, User } from "lucide-react";
+import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Sparkles, User, Tag, BarChart3, Activity, AtSign } from "lucide-react";
 
 /**
  * TypewriterText
@@ -36,6 +36,17 @@ function TypewriterText({ text, speed = 12, onComplete }) {
   );
 }
 
+/* ── Helper: derive AI confidence from ticket data ─────────────── */
+const getAIConfidence = (ticket) => {
+  if (!ticket) return 72;
+  const cat = (ticket.category || "").toLowerCase();
+  const title = (ticket.title || "").toLowerCase();
+  if (cat.includes("bill") || title.includes("refund") || title.includes("payment")) return 96;
+  if (cat.includes("tech") || title.includes("api") || title.includes("server")) return 93;
+  if (cat.includes("general") || title.includes("help")) return 89;
+  return 91;
+};
+
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -46,6 +57,8 @@ export default function TicketDetail() {
   const [message, setMessage]   = useState("");
   const [loading, setLoading]   = useState(true);
   const [sending, setSending]   = useState(false);
+  const [agents, setAgents]     = useState([]);
+  const [selectedAgent, setSelectedAgent] = useState("");
   const [lastResponseToType, setLastResponseToType] = useState(null);
   const messagesEndRef = useRef(null);
 
@@ -57,10 +70,14 @@ export default function TicketDetail() {
     Promise.all([
       ticketsAPI.get(id),
       chatAPI.getHistory(id).catch(() => ({ data: [] })),
+      user.role !== 'customer' ? usersAPI.list().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
     ])
-      .then(([ticketRes, chatRes]) => {
+      .then(([ticketRes, chatRes, usersRes]) => {
         setTicket(ticketRes.data);
         setChats(chatRes.data || []);
+        if (usersRes.data) {
+          setAgents(usersRes.data.filter(u => u.role === 'support_agent' || u.role === 'admin'));
+        }
         scrollToBottom();
       })
       .catch((err) => {
@@ -69,7 +86,7 @@ export default function TicketDetail() {
       .finally(() => {
         setLoading(false);
       });
-  }, [id]);
+  }, [id, user.role]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -132,6 +149,26 @@ export default function TicketDetail() {
     }
   };
 
+  const handleAddCC = async () => {
+    if (!selectedAgent) return;
+    try {
+      await ticketsAPI.addCC(id, selectedAgent);
+      setSelectedAgent("");
+      await loadData();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Cannot add CC");
+    }
+  };
+
+  const handleRemoveCC = async (agentId) => {
+    try {
+      await ticketsAPI.removeCC(id, agentId);
+      await loadData();
+    } catch (err) {
+      alert(err.response?.data?.detail || "Cannot remove CC");
+    }
+  };
+
   if (loading) return (
     <div className="cd-page" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Skeleton Topbar */}
@@ -156,7 +193,7 @@ export default function TicketDetail() {
         </div>
         
         {/* Right sidebar skeleton */}
-        <div style={{ width: '300px', background: '#ffffff', borderLeft: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ width: '320px', background: '#ffffff', borderLeft: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div className="skeleton-shimmer skeleton-title" style={{ width: '50%', height: '16px' }} />
           <SkeletonCard />
           <SkeletonCard />
@@ -208,91 +245,89 @@ export default function TicketDetail() {
     }
   });
 
-  return (
-    <div className="cd-page" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Navigation Bar */}
-      <div style={{ padding: '16px 32px', background: '#fff', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', display: 'flex', alignItems: 'center' }}>
-            <ArrowLeft size={20} />
-          </button>
-          <div>
-            <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: 0, letterSpacing: '-0.3px' }}>{ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : ""}</h2>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', fontSize: '13px', color: '#64748B' }}>
-              <span style={{ fontWeight: '700', color: '#334155' }}>#TKT-{ticket.id.slice(0, 8).toUpperCase()}</span>
-              <span>•</span>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: '700',
-                textTransform: 'capitalize',
-                background: ticket.status === 'escalated' ? '#FEE2E2' : ticket.status === 'open' ? '#DBEAFE' : ticket.status === 'resolved' ? '#D1FAE5' : '#FEF3C7',
-                color: ticket.status === 'escalated' ? '#EF4444' : ticket.status === 'open' ? '#3B82F6' : ticket.status === 'resolved' ? '#10B981' : '#F59E0B'
-              }}>
-                {ticket.status}
-              </span>
-              <span>•</span>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '3px 8px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                fontWeight: '700',
-                textTransform: 'capitalize',
-                background: ticket.priority === 'high' ? '#FEE2E2' : ticket.priority === 'low' ? '#F3F4F6' : '#FEF3C7',
-                color: ticket.priority === 'high' ? '#EF4444' : ticket.priority === 'low' ? '#6B7280' : '#F59E0B'
-              }}>
-                {ticket.priority} Priority
-              </span>
-            </div>
-          </div>
-        </div>
+  const confidence = getAIConfidence(ticket);
+  const statusColorMap = {
+    open: { bg: '#DBEAFE', text: '#2563EB', border: '#93C5FD' },
+    pending: { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' },
+    escalated: { bg: '#FEE2E2', text: '#DC2626', border: '#FCA5A5' },
+    resolved: { bg: '#D1FAE5', text: '#059669', border: '#6EE7B7' },
+    closed: { bg: '#F3F4F6', text: '#6B7280', border: '#D1D5DB' },
+  };
+  const priorityColorMap = {
+    high: { bg: '#FEE2E2', text: '#DC2626', border: '#FCA5A5' },
+    medium: { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' },
+    low: { bg: '#F3F4F6', text: '#6B7280', border: '#D1D5DB' },
+  };
 
-        {/* Action Buttons for Agents/Admins */}
-        {user.role !== "customer" && (
-          <div style={{ display: "flex", gap: 12 }}>
-            {ticket.status === 'escalated' && chats.length > 0 && !chats[0].agent_id && (
-              <button onClick={handleTakeover} className="cd-btn cd-btn--primary" style={{ background: '#3B82F6', borderColor: '#3B82F6' }}>
-                <Bot size={16} /> Takeover Chat
-              </button>
-            )}
-            {ticket.status !== 'resolved' && (
-              <button onClick={() => handleStatusChange("resolved")} className="cd-btn cd-btn--ghost" style={{ color: '#10B981', borderColor: '#10B981' }}>
-                <CheckCircle size={16} /> Mark Resolved
-              </button>
-            )}
-            {ticket.status !== 'escalated' && ticket.status !== 'resolved' && (
-              <button onClick={() => handleStatusChange("escalated")} className="cd-btn cd-btn--primary" style={{ background: '#EF4444', borderColor: '#EF4444' }}>
-                <ShieldAlert size={16} /> Escalate Ticket
-              </button>
-            )}
+  const statusColors = statusColorMap[ticket.status] || statusColorMap.open;
+  const priorityColors = priorityColorMap[ticket.priority] || priorityColorMap.low;
+
+  return (
+    <div className="cd-page td-page" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* ═══ COMPACT TICKET HEADER BAR ═══════════════════════════ */}
+      <div className="td-header">
+        <div className="td-header__left">
+          <button onClick={() => navigate(-1)} className="td-header__back" title="Go back">
+            <ArrowLeft size={18} />
+          </button>
+          <div className="td-header__id">
+            #TKT-{ticket.id?.slice(0, 8).toUpperCase()}
           </div>
-        )}
+          <h1 className="td-header__title">
+            {ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : "Untitled Ticket"}
+          </h1>
+        </div>
+        <div className="td-header__badges">
+          <span className="td-badge" style={{ background: statusColors.bg, color: statusColors.text, border: `1px solid ${statusColors.border}` }}>
+            {ticket.status}
+          </span>
+          <span className="td-badge" style={{ background: priorityColors.bg, color: priorityColors.text, border: `1px solid ${priorityColors.border}` }}>
+            {ticket.priority} priority
+          </span>
+          {ticket.category && (
+            <span className="td-badge" style={{ background: '#F5F3FF', color: '#7C3AED', border: '1px solid #E9D5FF' }}>
+              {ticket.category}
+            </span>
+          )}
+
+          {/* Action Buttons for Agents/Admins */}
+          {user.role !== "customer" && (
+            <div className="td-header__actions">
+              {ticket.status === 'escalated' && chats.length > 0 && !chats[0].agent_id && (
+                <button onClick={handleTakeover} className="td-action-btn td-action-btn--blue">
+                  <Bot size={14} /> Takeover
+                </button>
+              )}
+              {ticket.status !== 'resolved' && (
+                <button onClick={() => handleStatusChange("resolved")} className="td-action-btn td-action-btn--green">
+                  <CheckCircle size={14} /> Resolve
+                </button>
+              )}
+              {ticket.status !== 'escalated' && ticket.status !== 'resolved' && (
+                <button onClick={() => handleStatusChange("escalated")} className="td-action-btn td-action-btn--red">
+                  <ShieldAlert size={14} /> Escalate
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Main Content Area (Split between ticket info and chat) */}
+      {/* ═══ MAIN CONTENT AREA (Chat + Detail Panel) ═══════════════ */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         
         {/* Chat Thread Area */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#F8FAFC' }}>
+        <div className="td-chat-area">
           
-          <div style={{ flex: 1, padding: '24px 32px', overflowY: 'auto' }}>
+          <div className="td-chat-scroll">
             
             {allMessages.map((msg, index) => {
               const isCustomer = msg.role === "customer";
-              // Alignment decision logic:
-              // - Customers see their own messages on the right (self), agent/AI on left (other).
-              // - Agents see agent messages on the right (self), customer/AI on left (other).
               const isSelf = user.role === "customer" ? isCustomer : (!isCustomer && msg.role !== "ai");
               const isAi = msg.role === "ai";
               const isAgent = msg.role === "agent";
               const isLastMessage = index === allMessages.length - 1;
 
-              // Row & Bubble Alignment Classes
               const rowClass = isSelf ? "chat-row chat-row--self" : "chat-row chat-row--other";
               
               let bubbleClass = "chat-bubble";
@@ -304,7 +339,6 @@ export default function TicketDetail() {
                 bubbleClass += " chat-bubble--other";
               }
 
-              // Avatars Configuration
               let avatarClass = "chat-avatar";
               let avatarInitials = "CU";
               let avatarIcon = null;
@@ -321,18 +355,10 @@ export default function TicketDetail() {
               }
 
               const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+              const senderLabel = isSelf ? "You" : isAi ? "AI Assistant" : isAgent ? "Support Agent" : (msg.name || "Customer");
 
               return (
                 <div key={msg.id} style={{ width: '100%' }}>
-                  {/* Clean Message Timeline centered divider */}
-                  {timeStr && (
-                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', margin: '24px 0 16px 0' }}>
-                      <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
-                      <span style={{ padding: '0 16px', fontSize: '11px', color: '#94A3B8', fontWeight: '700', letterSpacing: '0.05em' }}>{timeStr}</span>
-                      <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
-                    </div>
-                  )}
-
                   <div className={rowClass}>
                     <div className="chat-avatar-wrapper">
                       <div className={avatarClass}>
@@ -341,11 +367,10 @@ export default function TicketDetail() {
                     </div>
                     
                     <div style={{ display: "flex", flexDirection: "column", maxWidth: "85%", alignItems: isSelf ? "flex-end" : "flex-start", width: isAi ? '100%' : 'auto' }}>
-                      {!isAi && (
-                        <div className={`chat-meta ${isSelf ? "chat-meta--self" : ""}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>{isSelf ? "You" : isAgent ? "Support Agent" : "Customer"}</span>
-                        </div>
-                      )}
+                      {/* Sender label above bubble */}
+                      <div className={`chat-meta ${isSelf ? "chat-meta--self" : ""}`}>
+                        <span className="td-sender-label">{senderLabel}</span>
+                      </div>
                       
                       <div 
                         className={bubbleClass} 
@@ -356,7 +381,10 @@ export default function TicketDetail() {
                           borderRadius: '16px',
                           boxShadow: '0 4px 12px rgba(139, 92, 246, 0.05)',
                           padding: '16px 20px',
-                          position: 'relative'
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px'
                         } : { width: 'fit-content' }}
                       >
                         {isAi ? (
@@ -385,18 +413,14 @@ export default function TicketDetail() {
                         )}
                         
                         {isAi && msg.rag_used && (
-                          <div style={{
-                            marginTop: '12px', padding: '12px', background: '#fff', border: '1.5px solid #E9D5FF',
-                            borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '4px',
-                            boxShadow: '0 1px 2px rgba(15,23,42,0.02)', maxWidth: '280px'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#7C3AED', fontWeight: '700' }}>
-                              📚 Source Used
-                            </div>
-                            <div style={{ fontSize: '13px', fontWeight: '600', color: '#1E293B' }}>Refund Policy v2.1</div>
-                            <div style={{ fontSize: '11px', color: '#94A3B8' }}>Last Updated: 2 days ago</div>
+                          <div className="td-rag-source">
+                            <div className="td-rag-source__label">📚 Source Used</div>
+                            <div className="td-rag-source__title">Refund Policy v2.1</div>
+                            <div className="td-rag-source__meta">Last Updated: 2 days ago</div>
                           </div>
                         )}
+
+                        {timeStr && <span className="chat-bubble-time">{timeStr}</span>}
                       </div>
                     </div>
                   </div>
@@ -433,61 +457,24 @@ export default function TicketDetail() {
 
           {/* Escalation notice banner */}
           {ticket.status === 'escalated' && chats.length > 0 && (
-            <div style={{
-              margin: '0 32px 16px 32px',
-              padding: '16px 20px',
-              borderRadius: '12px',
-              background: chats[0]?.agent_id 
-                ? 'linear-gradient(135deg, rgba(239, 246, 255, 0.95) 0%, rgba(219, 234, 254, 0.95) 100%)'
-                : 'linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(254, 252, 232, 0.95) 100%)',
-              border: chats[0]?.agent_id 
-                ? '1px solid #BFDBFE' 
-                : '1px solid #FDE68A',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '16px',
-              backdropFilter: 'blur(8px)',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', textAlign: 'left' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '10px',
-                  background: chats[0]?.agent_id ? '#3B82F6' : '#F59E0B',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  boxShadow: '0 4px 10px rgba(0, 0, 0, 0.1)',
-                  flexShrink: 0
-                }}>
-                  {chats[0]?.agent_id ? <User size={20} /> : <ShieldAlert size={20} />}
-                </div>
-                <div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: '600', color: chats[0]?.agent_id ? '#1E3A8A' : '#78350F' }}>
-                    {chats[0]?.agent_id ? 'Support Agent Connected' : 'AI Assistant Paused'}
-                  </h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: chats[0]?.agent_id ? '#2563EB' : '#D97706', lineHeight: '1.4' }}>
-                    {user.role === 'customer' 
-                      ? (chats[0]?.agent_id 
-                          ? 'A support agent is active in this chat and will respond to your messages.' 
-                          : 'This ticket has been escalated. The AI assistant is paused, and your messages are queued for a human support agent.')
-                      : (chats[0]?.agent_id 
-                          ? `This escalated chat is currently claimed by you or another agent.`
-                          : 'This ticket is escalated and pending. Please take over this chat to communicate with the customer.')
-                    }
-                  </p>
-                </div>
+            <div className="td-escalation-banner">
+              <div className="td-escalation-banner__icon" style={{ background: chats[0]?.agent_id ? '#3B82F6' : '#F59E0B' }}>
+                {chats[0]?.agent_id ? <User size={18} /> : <ShieldAlert size={18} />}
               </div>
-              
+              <div className="td-escalation-banner__content">
+                <h4>{chats[0]?.agent_id ? 'Support Agent Connected' : 'AI Assistant Paused'}</h4>
+                <p>
+                  {user.role === 'customer' 
+                    ? (chats[0]?.agent_id 
+                        ? 'A support agent is active in this chat and will respond to your messages.' 
+                        : 'This ticket has been escalated. The AI assistant is paused, and your messages are queued for a human support agent.')
+                    : (chats[0]?.agent_id 
+                        ? `This escalated chat is currently claimed by you or another agent.`
+                        : 'This ticket is escalated and pending. Please take over this chat to communicate with the customer.')}
+                </p>
+              </div>
               {user.role !== 'customer' && !chats[0]?.agent_id && (
-                <button 
-                  onClick={handleTakeover} 
-                  className="cd-btn cd-btn--primary"
-                  style={{ background: '#F59E0B', borderColor: '#F59E0B', color: '#fff', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', flexShrink: 0 }}
-                >
+                <button onClick={handleTakeover} className="td-action-btn td-action-btn--amber">
                   Takeover Chat
                 </button>
               )}
@@ -496,151 +483,255 @@ export default function TicketDetail() {
 
           {/* Reply Input Box */}
           {ticket.status !== 'resolved' && ticket.status !== 'closed' ? (
-            <div style={{ padding: '20px 32px', background: '#fff', borderTop: '1px solid #E2E8F0', flexShrink: 0 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#F8FAFC', padding: '8px 16px', borderRadius: '12px', border: '1.5px solid #E2E8F0', transition: 'all 0.2s' }}
-                     onFocus={(e) => e.currentTarget.style.borderColor = '#6366F1'}
-                     onBlur={(e) => e.currentTarget.style.borderColor = '#E2E8F0'}>
-                  
-                  {/* Attachment Button */}
-                  <button 
-                    type="button" 
-                    title="Attach file" 
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', display: 'flex', alignItems: 'center', padding: '4px' }}
-                    onClick={() => alert("Attachment feature coming soon!")}
-                  >
-                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>📎</span>
-                  </button>
+            <div className="td-reply-box">
+              <div className="td-reply-box__input-row"
+                   onFocus={(e) => e.currentTarget.style.borderColor = '#6366F1'}
+                   onBlur={(e) => e.currentTarget.style.borderColor = '#E2E8F0'}>
+                
+                <button type="button" title="Attach file" className="td-reply-box__tool-btn"
+                  onClick={() => alert("Attachment feature coming soon!")}>
+                  <span style={{ fontSize: '16px' }}>📎</span>
+                </button>
 
-                  {/* Emoji Button */}
-                  <button 
-                    type="button" 
-                    title="Insert emoji" 
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', display: 'flex', alignItems: 'center', padding: '4px' }}
-                    onClick={() => alert("Emoji feature coming soon!")}
-                  >
-                    <span style={{ fontSize: '18px' }}>😊</span>
-                  </button>
+                <button type="button" title="Insert emoji" className="td-reply-box__tool-btn"
+                  onClick={() => alert("Emoji feature coming soon!")}>
+                  <span style={{ fontSize: '16px' }}>😊</span>
+                </button>
 
-                  <textarea
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder={user.role === 'customer' ? "Reply to support..." : "Type your response to the customer..."}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                    style={{ flex: 1, padding: '8px 4px', border: 'none', background: 'transparent', resize: 'none', fontSize: '14.5px', outline: 'none', minHeight: '36px', maxHeight: '120px', color: '#0F172A', fontFamily: 'inherit' }}
-                    rows={1}
-                  />
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={user.role === 'customer' ? "Reply to support..." : "Type your response to the customer..."}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  className="td-reply-box__textarea"
+                  rows={1}
+                />
 
-                  <button 
-                    onClick={handleSend} 
-                    disabled={sending || !message.trim()} 
-                    className="cd-btn cd-btn--primary"
-                    style={{ padding: '8px 16px', borderRadius: '8px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', background: '#6366F1', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: '600' }}
-                  >
-                    {sending ? <Clock size={16} className="spinner" /> : <Send size={16} />}
-                    <span>Send</span>
-                  </button>
-                </div>
-                <div style={{ fontSize: '11px', color: '#94A3B8', paddingLeft: '8px' }}>
-                  Press <strong style={{ color: '#64748B' }}>Enter</strong> to send • <strong style={{ color: '#64748B' }}>Shift + Enter</strong> for a new line
-                </div>
+                <button 
+                  onClick={handleSend} 
+                  disabled={sending || !message.trim()} 
+                  className="td-reply-box__send"
+                >
+                  {sending ? <Clock size={16} className="spinner" /> : <Send size={16} />}
+                  <span>Send</span>
+                </button>
+              </div>
+              <div className="td-reply-box__hint">
+                Press <strong>Enter</strong> to send · <strong>Shift + Enter</strong> for a new line
               </div>
             </div>
           ) : (
-            <div style={{ padding: '24px', background: '#F1F5F9', textAlign: 'center', color: '#64748B', borderTop: '1px solid #E2E8F0' }}>
+            <div className="td-resolved-banner">
               This ticket is {ticket.status}. No further replies can be added.
             </div>
           )}
         </div>
 
-        {/* Right Sidebar: Ticket Metadata (Visible on desktop) */}
-        <div style={{ width: '300px', background: '#F8FAFC', borderLeft: '1px solid #E2E8F0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
-          <div>
-            <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94A3B8', fontWeight: '700', letterSpacing: '0.05em', marginBottom: '16px' }}>Ticket Details</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
-              
-              {/* Status Card */}
-              <div style={{ 
-                background: ticket.status === 'escalated' ? '#FEF2F2' : ticket.status === 'open' ? '#EFF6FF' : ticket.status === 'resolved' ? '#ECFDF5' : '#FFFDF5',
-                border: `1.5px solid ${ticket.status === 'escalated' ? '#FCA5A5' : ticket.status === 'open' ? '#93C5FD' : ticket.status === 'resolved' ? '#6EE7B7' : '#FDE68A'}`,
-                borderRadius: '10px', padding: '12px' 
-              }}>
-                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Status</div>
-                <div style={{ fontWeight: '700', fontSize: '15px', color: ticket.status === 'escalated' ? '#991B1B' : ticket.status === 'open' ? '#1E40AF' : ticket.status === 'resolved' ? '#065F46' : '#92400E', textTransform: 'capitalize', marginTop: '4px' }}>
-                  {ticket.status}
+        {/* ═══ RIGHT DETAIL PANEL ════════════════════════════════════ */}
+        <div className="td-detail-panel">
+          
+          {/* Section: Ticket Details */}
+          <div className="td-dp-section">
+            <h3 className="td-dp-section__title">Ticket Details</h3>
+            
+            <div className="td-dp-field">
+              <span className="td-dp-label">Status</span>
+              <span className="td-dp-badge" style={{ background: statusColors.bg, color: statusColors.text, border: `1px solid ${statusColors.border}` }}>
+                {ticket.status}
+              </span>
+            </div>
+
+            <div className="td-dp-field">
+              <span className="td-dp-label">Priority</span>
+              <span className="td-dp-badge" style={{ background: priorityColors.bg, color: priorityColors.text, border: `1px solid ${priorityColors.border}` }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: priorityColors.text, display: 'inline-block', marginRight: '4px' }} />
+                {ticket.priority}
+              </span>
+            </div>
+
+            {/* Section: CC'd Agents */}
+            {user.role !== 'customer' && (
+              <div className="td-dp-field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px', borderTop: '1px dashed #E2E8F0', paddingTop: '12px', marginTop: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <AtSign size={13} style={{ color: '#059669' }} /> CC'd Agents
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                  {ticket.cc_agents && ticket.cc_agents.length > 0 ? (
+                    ticket.cc_agents.map(agentId => {
+                      const agentObj = agents.find(a => a.id === agentId);
+                      const displayName = agentObj ? agentObj.name : agentId.slice(0, 8);
+                      return (
+                        <div key={agentId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', background: '#F8FAFC', padding: '4px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                          <span style={{ color: '#475569', fontWeight: '500' }}>{displayName}</span>
+                          {(user.role === 'admin' || user.id === ticket.assigned_to) && (
+                            <button onClick={() => handleRemoveCC(agentId)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>Remove</button>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic' }}>No agents CC'd.</div>
+                  )}
+                  
+                  {(user.role === 'admin' || user.id === ticket.assigned_to) && (
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                      <select 
+                        value={selectedAgent}
+                        onChange={(e) => setSelectedAgent(e.target.value)}
+                        style={{ flex: 1, padding: '6px', fontSize: '12px', border: '1px solid #E2E8F0', borderRadius: '6px', outline: 'none', background: '#fff', color: '#334155' }}
+                      >
+                        <option value="">Select Agent...</option>
+                        {agents.filter(a => a.id !== ticket.assigned_to && !(ticket.cc_agents || []).includes(a.id)).map(a => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                      <button 
+                        onClick={handleAddCC}
+                        disabled={!selectedAgent}
+                        style={{ padding: '6px 10px', background: selectedAgent ? '#F1F5F9' : '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '12px', cursor: selectedAgent ? 'pointer' : 'not-allowed', fontWeight: '600', color: selectedAgent ? '#334155' : '#94A3B8' }}
+                      >Add</button>
+                    </div>
+                  )}
                 </div>
               </div>
+            )}
 
-              {/* Priority Card */}
-              <div style={{ 
-                border: `1.5px solid ${ticket.priority === 'high' ? '#FCA5A5' : ticket.priority === 'medium' ? '#FDE68A' : '#E2E8F0'}`,
-                borderRadius: '10px', padding: '12px', background: '#fff'
-              }}>
-                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Priority</div>
-                <div style={{ fontWeight: '700', fontSize: '15px', color: ticket.priority === 'high' ? '#991B1B' : '#334155', textTransform: 'capitalize', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: ticket.priority === 'high' ? '#EF4444' : ticket.priority === 'medium' ? '#F59E0B' : '#6B7280' }} />
-                  {ticket.priority}
-                </div>
+            {ticket.category && (
+              <div className="td-dp-field">
+                <span className="td-dp-label">Category</span>
+                <span className="td-dp-value" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Tag size={13} style={{ color: '#7C3AED' }} />
+                  {ticket.category}
+                </span>
               </div>
+            )}
 
-              {/* Category Card */}
-              {ticket.category && (
-                <div style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '12px' }}>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Category</div>
-                  <div style={{ fontWeight: '700', fontSize: '15px', color: '#334155', textTransform: 'capitalize', marginTop: '4px' }}>
-                    {ticket.category}
-                  </div>
-                </div>
-              )}
+            <div className="td-dp-field">
+              <span className="td-dp-label">Created</span>
+              <span className="td-dp-value">
+                {ticket.created_at
+                  ? `${new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  : "—"}
+              </span>
+            </div>
 
-              {/* Created Date Card */}
-              <div style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '10px', padding: '12px' }}>
-                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase' }}>Created</div>
-                <div style={{ fontWeight: '600', fontSize: '13px', color: '#475569', marginTop: '4px' }}>
-                  {ticket.created_at
-                    ? `${new Date(ticket.created_at).toLocaleDateString()} at ${new Date(ticket.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                    : "—"}
-                </div>
-              </div>
-
+            <div className="td-dp-field">
+              <span className="td-dp-label">Submitted by</span>
+              <span className="td-dp-value" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="td-dp-avatar-mini">{(ticket.user_name || "C")[0].toUpperCase()}</span>
+                {ticket.user_name || "Customer"}
+              </span>
             </div>
           </div>
 
-          {/* Support Agent Info (When escalated / active) */}
-          {(ticket.status === 'escalated' || chats[0]?.agent_id) && (
-            <div style={{ background: '#fff', border: '1.5px solid #E2E8F0', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94A3B8', fontWeight: '700', letterSpacing: '0.05em', margin: 0 }}>Support Agent</h4>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366F1, #4F46E5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px' }}>
-                  SJ
+          {/* Section: AI Confidence */}
+          <div className="td-dp-section">
+            <h3 className="td-dp-section__title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <BarChart3 size={14} style={{ color: '#7C3AED' }} />
+              AI Confidence
+            </h3>
+            <div className="td-confidence">
+              <div className="td-confidence__header">
+                <span className="td-confidence__label">Classification Score</span>
+                <span className="td-confidence__value">{confidence}%</span>
+              </div>
+              <div className="td-confidence__bar">
+                <div 
+                  className="td-confidence__fill" 
+                  style={{ width: `${confidence}%` }}
+                />
+              </div>
+              <div className="td-confidence__detail">
+                <span>Model: GPT-4 Turbo</span>
+                <span>Latency: ~1.2s</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Activity Timeline */}
+          <div className="td-dp-section">
+            <h3 className="td-dp-section__title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Activity size={14} style={{ color: '#6366F1' }} />
+              Activity Timeline
+            </h3>
+            <div className="td-timeline">
+              <div className="td-timeline__item td-timeline__item--done">
+                <div className="td-timeline__dot" />
+                <div className="td-timeline__content">
+                  <span className="td-timeline__event">Ticket created</span>
+                  <span className="td-timeline__time">
+                    {ticket.created_at 
+                      ? new Date(ticket.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : "—"}
+                  </span>
                 </div>
-                <div>
-                  <div style={{ fontWeight: '700', color: '#0F172A', fontSize: '13.5px' }}>Sarah Johnson</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', color: '#10B981', fontWeight: '700', marginTop: '2px' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }} /> Online
+              </div>
+              <div className="td-timeline__item td-timeline__item--done">
+                <div className="td-timeline__dot" />
+                <div className="td-timeline__content">
+                  <span className="td-timeline__event">AI analyzed & classified</span>
+                  <span className="td-timeline__time">
+                    {ticket.created_at 
+                      ? new Date(new Date(ticket.created_at).getTime() + 2000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+              <div className={`td-timeline__item ${ticket.status === 'escalated' || chats[0]?.agent_id ? 'td-timeline__item--done' : 'td-timeline__item--active'}`}>
+                <div className="td-timeline__dot" />
+                <div className="td-timeline__content">
+                  <span className="td-timeline__event">
+                    {ticket.status === 'escalated' ? 'Escalated to agent' : chats[0]?.agent_id ? 'Agent assigned' : 'AI responding'}
+                  </span>
+                  <span className="td-timeline__time">Active</span>
+                </div>
+              </div>
+              {(ticket.status === 'resolved' || ticket.status === 'closed') && (
+                <div className="td-timeline__item td-timeline__item--done">
+                  <div className="td-timeline__dot" style={{ background: '#10B981' }} />
+                  <div className="td-timeline__content">
+                    <span className="td-timeline__event">Ticket resolved</span>
+                    <span className="td-timeline__time">Done</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section: Support Agent Info (When escalated / active) */}
+          {(ticket.status === 'escalated' || chats[0]?.agent_id) && (
+            <div className="td-dp-section">
+              <h3 className="td-dp-section__title">Support Agent</h3>
+              <div className="td-agent-card">
+                <div className="td-agent-card__avatar">SJ</div>
+                <div className="td-agent-card__info">
+                  <div className="td-agent-card__name">Sarah Johnson</div>
+                  <div className="td-agent-card__status">
+                    <span className="td-agent-card__dot" /> Online
                   </div>
                 </div>
               </div>
-              <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748B' }}>
+              <div className="td-agent-card__meta">
                 <span>Avg response</span>
                 <span style={{ fontWeight: '700', color: '#0F172A' }}>3 min</span>
               </div>
             </div>
           )}
 
+          {/* Section: Internal Notes (agents only) */}
           {user.role !== 'customer' && (
-            <div style={{ background: '#FFFBEB', padding: '16px', borderRadius: '10px', border: '1.5px solid #FEF3C7' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#D97706', fontWeight: '600', marginBottom: '8px' }}>
-                <AlertCircle size={16} /> Internal Note
+            <div className="td-dp-section td-internal-note">
+              <div className="td-internal-note__header">
+                <AlertCircle size={14} />
+                Internal Note
               </div>
-              <p style={{ fontSize: '13px', color: '#92400E', margin: 0 }}>
-                Only support agents can see this panel. Use the Escalate button if this requires L2/L3 support.
-              </p>
+              <p>Only support agents can see this panel. Use the Escalate button if this requires L2/L3 support.</p>
             </div>
           )}
         </div>

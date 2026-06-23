@@ -37,7 +37,7 @@ function PriorityPill({ priority }) {
   );
 }
 
-export default function TicketList() {
+export default function TicketList({ mode = "all" }) {
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,18 +45,23 @@ export default function TicketList() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    ticketsAPI.list()
-      .then((res) => setTickets(res.data.tickets || res.data || []))
-      .catch(() => {
-        setTickets([
-          { id: "T-100", title: "General inquiry", status: "open", priority: "low", created_at: new Date().toISOString() },
-          { id: "T-101", title: "Payment failure", status: "escalated", priority: "high", created_at: new Date().toISOString() },
-          { id: "T-102", title: "Feature Request", status: "open", priority: "medium", created_at: new Date().toISOString() },
-          { id: "T-103", title: "Unable to use the application", status: "pending", priority: "high", created_at: new Date().toISOString() },
-        ]);
-      })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    let fetchPromise;
+
+    if (mode === "cc") {
+      fetchPromise = ticketsAPI.listCC().then(res => res.data);
+    } else if (mode === "completed") {
+      fetchPromise = ticketsAPI.completedRecent().then(res => res.data);
+    } else {
+      fetchPromise = ticketsAPI.list().then(res => res.data.tickets || res.data || []);
+    }
+
+    fetchPromise
+      .then(data => setTickets(data))
+      .catch(() => setTickets([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [mode]);
 
   // Listen to live ticket created events (e.g. if created by any customer)
   useWebSocketEvent("ticket_created", (data) => {
@@ -102,8 +107,12 @@ export default function TicketList() {
           <Ticket size={26} color="#fff" />
         </div>
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#fff', letterSpacing: '-0.3px' }}>All Tickets</h2>
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>Global view of all support requests in the system.</p>
+          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#fff', letterSpacing: '-0.3px' }}>
+            {mode === 'cc' ? "CC'd Tickets" : mode === 'completed' ? "Recently Completed" : "All Tickets"}
+          </h2>
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginTop: '2px' }}>
+            {mode === 'cc' ? "Tickets you are copied on." : mode === 'completed' ? "Tickets resolved in the last 30 days." : "Global view of all support requests in the system."}
+          </p>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '24px' }}>
           {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {

@@ -78,11 +78,31 @@ export const ticketsAPI = {
   /** Open ticket count per agent (admin/agent only). */
   workload: () => api.get("/tickets/workload"),
 
+  /** Get ticket analytics (admin/agent only). */
+  analytics: (days = 30) => api.get(`/tickets/analytics?days=${days}`),
+
   /** Advanced search (admin/agent only). */
   search: (params = {}) => api.get("/tickets/search", { params }),
 
   /** All tickets assigned to a specific agent. */
   agentTickets: (agentId) => api.get(`/tickets/agent/${agentId}`),
+
+  /** Add an agent to the CC list (admin/assigned agent only). */
+  addCC: (ticketId, agentId) =>
+    api.patch(`/tickets/${ticketId}/cc`, { add_agent_id: agentId }),
+
+  /** Remove an agent from the CC list (admin/assigned agent only). */
+  removeCC: (ticketId, agentId) =>
+    api.patch(`/tickets/${ticketId}/cc`, { remove_agent_id: agentId }),
+
+  /** Fetch tickets where the current agent is CC'd. */
+  listCC: () => api.get("/tickets/cc"),
+
+  /** Get count of CC'd tickets for the sidebar badge. */
+  ccCount: () => api.get("/tickets/cc/count"),
+
+  /** Get tickets resolved in the last 30 days. */
+  completedRecent: () => api.get("/tickets/completed-recent"),
 };
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
@@ -195,7 +215,21 @@ export const usersAPI = {
 
   /** Update user role (admin only). */
   updateRole: (userId, role) => api.patch(`/users/${userId}`, { role }),
+
+  /** Set the department for a support agent (admin only). */
+  setDepartment: (userId, department) =>
+    api.patch(`/users/${userId}/department`, { department }),
+
+  /** Update current user's profile info (name, email) */
+  updateProfile: (name, email) => api.patch("/users/me/profile", { name, email }),
+
+  /** Update current user's password */
+  updatePassword: (current_password, new_password) => api.patch("/users/me/password", { current_password, new_password }),
+
+  /** Delete current user's own account */
+  deleteOwnAccount: () => api.delete("/users/me"),
 };
+
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 

@@ -7,7 +7,7 @@ import { SkeletonTableRow } from "../components/SkeletonCard";
 import {
   Search, Filter, ChevronDown, Plus, Sparkles, BarChart3,
   RefreshCw, CheckCircle2, AlertTriangle, ArrowRight, UserPlus, MessageSquare,
-  TrendingUp, Clock
+  TrendingUp, Clock, Building2
 } from "lucide-react";
 
 const STATUS_COLORS = {
@@ -130,9 +130,23 @@ export default function AgentDashboard() {
       
       {/* ── 1. Premium Header with Quick Actions ───────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dashboard</h1>
-          <p style={{ margin: '4px 0 0 0', fontSize: '14.5px', color: '#64748B' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dashboard</h1>
+            {user?.department && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                padding: '4px 10px', borderRadius: '8px',
+                background: '#EEF2FF', color: '#4F46E5',
+                fontSize: '13px', fontWeight: '700',
+                border: '1px solid #4F46E522',
+              }}>
+                <Building2 size={12} />
+                {user.department === 'all' ? 'All Departments' : user.department.charAt(0).toUpperCase() + user.department.slice(1)}
+              </span>
+            )}
+          </div>
+          <p style={{ margin: 0, fontSize: '14.5px', color: '#64748B' }}>
             Manage and track your support requests
           </p>
         </div>

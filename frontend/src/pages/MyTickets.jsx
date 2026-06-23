@@ -52,6 +52,11 @@ const getAIConfidence = (ticket) => {
 
 export default function MyTickets() {
   const { user } = useAuth();
+  const getFirstName = (fullName) => {
+    if (!fullName) return "Customer";
+    const first = fullName.trim().split(/\s+/)[0];
+    return first.charAt(0).toUpperCase() + first.slice(1);
+  };
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -166,85 +171,211 @@ export default function MyTickets() {
       {activeTab === "dashboard" && (
         <div className="cd-fade-in" style={{ padding: '32px' }}>
           
-          {/* Title Header */}
-          <div style={{ marginBottom: '24px' }}>
-            <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dashboard</h1>
-            <p style={{ margin: '4px 0 0 0', fontSize: '14.5px', color: '#64748B' }}>
-              Manage and track your support requests
-            </p>
+          {/* Title Header with far-right CTA */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <div>
+              <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dashboard</h1>
+              <p style={{ margin: '4px 0 0 0', fontSize: '14.5px', color: '#64748B' }}>
+                Manage and track your support requests
+              </p>
+            </div>
+            <button 
+              className="cd-btn" 
+              onClick={() => navigate("/my-tickets/new")} 
+              style={{ 
+                background: '#0F172A', 
+                color: '#ffffff', 
+                border: 'none', 
+                borderRadius: '8px', 
+                padding: '10px 18px', 
+                fontWeight: '600',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                transition: 'background 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#1E293B'}
+              onMouseLeave={e => e.currentTarget.style.background = '#0F172A'}
+            >
+              <span>+ New Ticket</span>
+            </button>
           </div>
           
-          {/* Hero section */}
-          <div className="modern-hero" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #6D28D9 100%)', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.15)', borderRadius: '16px' }}>
-            <div className="modern-hero__content">
-              <h2>👋 Welcome back, {user?.name ? user.name.charAt(0).toUpperCase() + user.name.slice(1) : "Customer"}</h2>
-              <p style={{ color: 'rgba(255, 255, 255, 0.85)' }}>You have <strong>{stats.open}</strong> open support tickets.</p>
+          {/* Navy Hero Welcome Card */}
+          <div className="modern-hero" style={{ 
+            background: '#151E2E', 
+            borderRadius: '16px', 
+            padding: '28px 32px', 
+            position: 'relative',
+            overflow: 'hidden',
+            color: '#ffffff',
+            boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+            marginBottom: '24px'
+          }}>
+            {/* Striped pattern overlay on the right */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: '40%',
+              background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 10px, transparent 10px, transparent 20px)',
+              pointerEvents: 'none'
+            }} />
+
+            <div>
+              <span style={{ 
+                color: '#F97316', 
+                fontSize: '11px', 
+                fontWeight: '800', 
+                letterSpacing: '0.1em',
+                display: 'block',
+                marginBottom: '8px'
+              }}>SMART AI ROUTING</span>
+              <h2 style={{ 
+                margin: 0, 
+                fontSize: '26px', 
+                fontWeight: '700', 
+                letterSpacing: '-0.5px' 
+              }}>Welcome back, {getFirstName(user?.name)}</h2>
+              <p style={{ 
+                margin: '8px 0 0 0', 
+                color: '#94A3B8', 
+                fontSize: '14.5px' 
+              }}>
+                You have <strong style={{ color: '#ffffff', fontWeight: '700' }}>{stats.open} open tickets</strong> · AI response time &lt; 10s
+              </p>
             </div>
-            <button className="cd-btn cd-btn--primary" onClick={() => navigate("/my-tickets/new")} style={{ background: '#fff', color: '#4F46E5', borderColor: '#fff', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', fontWeight: '600' }}>
-              <PlusCircle size={18} style={{ color: '#4F46E5' }} /> New Ticket
-            </button>
+
+            <div style={{ display: 'flex', gap: '12px', zIndex: 1 }}>
+              <button 
+                onClick={() => navigate("/my-tickets/new")}
+                style={{
+                  background: 'transparent',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)';
+                }}
+              >
+                <span>+ Create Ticket</span>
+              </button>
+              <button 
+                onClick={() => navigate("/my-tickets/history")}
+                style={{
+                  background: 'transparent',
+                  color: '#94A3B8',
+                  border: '1px solid rgba(148, 163, 184, 0.25)',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.color = '#ffffff';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#94A3B8';
+                }}
+              >
+                View History
+              </button>
+            </div>
           </div>
 
           {/* Stat cards */}
           <div className="modern-stats">
             <div className="modern-stat-card" style={{ borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-              <div className="modern-stat-card__icon" style={{ color: '#64748B', background: '#F1F5F9' }}>
+              <div className="modern-stat-card__icon" style={{ color: '#C2410C', background: '#FFF7ED' }}>
                 <Ticket size={24} />
               </div>
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.total}</span>
                 <span className="modern-stat-card__label">Total</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
-                    <TrendingUp size={10} /> +5%
-                  </span>
-                  <span>this week</span>
-                </div>
+                {stats.total > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                      <TrendingUp size={10} /> +5%
+                    </span>
+                    <span>this week</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modern-stat-card" style={{ borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-              <div className="modern-stat-card__icon" style={{ color: '#3B82F6', background: '#EFF6FF' }}>
+              <div className="modern-stat-card__icon" style={{ color: '#2563EB', background: '#EFF6FF' }}>
                 <MailOpen size={24} />
               </div>
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.open}</span>
                 <span className="modern-stat-card__label">Open</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
-                    <TrendingDown size={10} /> -20%
-                  </span>
-                  <span>vs yesterday</span>
-                </div>
+                {stats.open > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                      <TrendingDown size={10} /> -20%
+                    </span>
+                    <span>vs yesterday</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modern-stat-card" style={{ borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-              <div className="modern-stat-card__icon" style={{ color: '#F59E0B', background: '#FEF3C7' }}>
+              <div className="modern-stat-card__icon" style={{ color: '#D97706', background: '#FEF3C7' }}>
                 <Clock size={24} />
               </div>
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.inprog}</span>
                 <span className="modern-stat-card__label">Pending</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#EF4444', background: '#FEF2F2', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
-                    <TrendingUp size={10} /> +2%
-                  </span>
-                  <span>vs yesterday</span>
-                </div>
+                {stats.inprog > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#EF4444', background: '#FEF2F2', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                      <TrendingUp size={10} /> +2%
+                    </span>
+                    <span>vs yesterday</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="modern-stat-card" style={{ borderRadius: '14px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-              <div className="modern-stat-card__icon" style={{ color: '#10B981', background: '#D1FAE5' }}>
+              <div className="modern-stat-card__icon" style={{ color: '#059669', background: '#D1FAE5' }}>
                 <CheckCircle size={24} />
               </div>
               <div className="modern-stat-card__info">
                 <span className="modern-stat-card__value">{stats.resolved}</span>
                 <span className="modern-stat-card__label">Resolved</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
-                    <TrendingUp size={10} /> +12%
-                  </span>
-                  <span>this week</span>
-                </div>
+                {stats.resolved > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11px', color: '#64748B', fontWeight: '500' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', color: '#10B981', background: '#F0FDF4', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                      <TrendingUp size={10} /> +12%
+                    </span>
+                    <span>this week</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -254,8 +385,19 @@ export default function MyTickets() {
             <div style={{ flex: '1 1 600px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#0F172A' }}>Recent Tickets</h3>
-                <button className="cd-btn cd-btn--ghost" onClick={() => navigate('/my-tickets/history')} style={{ padding: '8px 16px', fontSize: '14px' }}>
-                  View All
+                <button 
+                  onClick={() => navigate('/my-tickets/history')} 
+                  style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    color: '#8A6200', 
+                    fontWeight: '600', 
+                    fontSize: '14px', 
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  View all
                 </button>
               </div>
 
@@ -267,15 +409,12 @@ export default function MyTickets() {
                 </div>
               )}
               {!loading && tickets.length === 0 && (
-                <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px dashed #CBD5E1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
-                  <div className="modern-empty-state__icon" style={{ background: '#EEEDFF', color: '#6366F1', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
+                  <div className="modern-empty-state__icon" style={{ background: '#F1F5F9', color: '#94A3B8', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Inbox size={26} />
                   </div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', margin: 0 }}>🎉 You're all caught up!</h3>
-                  <p style={{ fontSize: '14px', color: '#64748B', margin: 0, maxWidth: '280px', lineHeight: '1.5' }}>No active support tickets. Create a new ticket if you need help.</p>
-                  <button className="cd-btn cd-btn--primary" onClick={() => navigate("/my-tickets/new")} style={{ marginTop: '8px' }}>
-                    <PlusCircle size={16} /> Create Ticket
-                  </button>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#0F172A', margin: 0 }}>You're all caught up!</h3>
+                  <p style={{ fontSize: '14.5px', color: '#64748B', margin: 0, maxWidth: '280px', lineHeight: '1.5', textAlign: 'center' }}>No active tickets. Create one if you need help.</p>
                 </div>
               )}
 
@@ -291,7 +430,7 @@ export default function MyTickets() {
                         <div className="rich-ticket-card__header">
                            <div className="rich-ticket-card__title-row">
                             <span className="rich-ticket-card__emoji" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', background: '#F1F5F9', borderRadius: '8px' }}>
-                              {getCategoryIcon(ticket.category)}
+                               {getCategoryIcon(ticket.category)}
                             </span>
                             <div>
                               <div className="rich-ticket-card__title">
@@ -345,29 +484,114 @@ export default function MyTickets() {
             {/* Right Column: Quick Actions + User Stats + Activity Feed */}
             <div style={{ flex: '1 1 300px' }}>
               <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#0F172A', marginBottom: '16px' }}>Quick Actions</h3>
-              <div className="modern-quick-actions">
-                <button className="modern-quick-action" onClick={() => navigate("/my-tickets/new")} style={{ borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-                  <PlusCircle size={20} style={{ color: '#6366F1' }} />
-                  <span style={{ fontSize: '15px', fontWeight: '600', color: '#1E293B' }}>Create Ticket</span>
-                </button>
-                <button className="modern-quick-action" onClick={() => navigate("/my-tickets/history")} style={{ borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-                  <FileText size={20} style={{ color: '#10B981' }} />
-                  <span style={{ fontSize: '15px', fontWeight: '600', color: '#1E293B' }}>View History</span>
-                </button>
-                <button className="modern-quick-action" onClick={() => navigate("/settings")} style={{ borderRadius: '12px', border: '1px solid #E2E8F0', padding: '18px 20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-                  <Settings size={20} style={{ color: '#64748B' }} />
-                  <span style={{ fontSize: '15px', fontWeight: '600', color: '#1E293B' }}>Settings</span>
-                </button>
+              <div className="custom-quick-actions-card" style={{
+                background: '#ffffff',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                overflow: 'hidden',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)'
+              }}>
+                <div 
+                  onClick={() => navigate("/my-tickets/new")}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s',
+                    borderBottom: '1px solid #E2E8F0'
+                  }}
+                  className="quick-action-row"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: '#FFF7ED',
+                      color: '#C2410C',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <PlusCircle size={18} />
+                    </div>
+                    <span style={{ fontSize: '15px', fontWeight: '600', color: '#1E293B' }}>Create Ticket</span>
+                  </div>
+                  <span style={{ color: '#94A3B8', fontSize: '16px', fontWeight: 'bold' }}>&gt;</span>
+                </div>
+
+                <div 
+                  onClick={() => navigate("/my-tickets/history")}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s',
+                    borderBottom: '1px solid #E2E8F0'
+                  }}
+                  className="quick-action-row"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: '#EFF6FF',
+                      color: '#2563EB',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Clock size={18} />
+                    </div>
+                    <span style={{ fontSize: '15px', fontWeight: '600', color: '#1E293B' }}>View History</span>
+                  </div>
+                  <span style={{ color: '#94A3B8', fontSize: '16px', fontWeight: 'bold' }}>&gt;</span>
+                </div>
+
+                <div 
+                  onClick={() => navigate("/profile")}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 20px',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s'
+                  }}
+                  className="quick-action-row"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: '#F1F5F9',
+                      color: '#64748B',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <Settings size={18} />
+                    </div>
+                    <span style={{ fontSize: '15px', fontWeight: '600', color: '#1E293B' }}>Settings</span>
+                  </div>
+                  <span style={{ color: '#94A3B8', fontSize: '16px', fontWeight: 'bold' }}>&gt;</span>
+                </div>
               </div>
 
               {/* User Stats Card */}
               <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#0F172A', marginTop: '28px', marginBottom: '12px' }}>Your Support Stats</h3>
               <div className="user-stats-grid">
-                <div className="user-stat-card">
+                <div className="user-stat-card" style={{ borderTop: '3px solid #10B981' }}>
                   <span className="user-stat-val">100%</span>
                   <span className="user-stat-lbl">Success Rate</span>
                 </div>
-                <div className="user-stat-card">
+                <div className="user-stat-card" style={{ borderTop: '3px solid #7C3AED' }}>
                   <span className="user-stat-val">12 min</span>
                   <span className="user-stat-lbl">Avg Resolution</span>
                 </div>
@@ -699,7 +923,7 @@ export default function MyTickets() {
               )}
 
               {!loading && filtered.length === 0 && (
-                <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px dashed #CBD5E1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
+                <div className="modern-empty-state" style={{ padding: '40px 24px', background: '#ffffff', borderRadius: '16px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
                   <div className="modern-empty-state__icon" style={{ background: '#EEEDFF', color: '#6366F1', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Inbox size={26} />
                   </div>

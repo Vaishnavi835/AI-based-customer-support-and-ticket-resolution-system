@@ -159,8 +159,16 @@ export default function ForgotPassword() {
     <div className="register-shell">
       <div className="login-card">
         <div className="register-form-side">
-          <div className="register-brand">
-            AI<span>Support</span>
+          {/* Enhanced brand logo */}
+          <div className="register-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span className="register-brand__icon" style={{ fontSize: '32px', color: '#C4683D', marginRight: '4px' }}>✦</span>
+              <span className="register-brand__text" style={{ fontSize: '30px', fontWeight: '800', color: '#1C2333', letterSpacing: '-0.5px' }}>AI</span>
+              <span className="register-brand__accent" style={{ fontSize: '30px', fontWeight: '600', color: '#C4683D', fontFamily: 'Georgia, serif' }}>Support</span>
+            </div>
+            <div className="register-brand__tagline" style={{ marginLeft: '36px', fontSize: '11px', fontWeight: '600', letterSpacing: '0.08em', color: '#8A8E9C', textTransform: 'uppercase' }}>
+              Smart Ticket Intelligence
+            </div>
           </div>
 
           {/* ── STEP 1: Email ────────────────────────────────────── */}

@@ -102,7 +102,7 @@ function DemoEscalation({ step }) {
               <div className="demo-avatar demo-avatar--ai">AI</div>
               <span>AI Assistant</span>
             </div>
-            <div className="demo-bubble demo-bubble--ai" style={{ background: '#F5F3FF', color: '#5B21B6', border: '1px solid #DDD6FE', fontSize: '13px', padding: '10px 14px' }}>
+            <div className="demo-bubble demo-bubble--ai" style={{ background: '#D1FAE5', color: '#065F46', border: '1px solid #A7F3D0', fontSize: '13px', padding: '10px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', marginBottom: '4px' }}>
                 <Sparkles size={14} /> AI Classification
               </div>
@@ -170,17 +170,14 @@ function LoginDemoSection() {
 
       <div className="demo-eyebrow">Smart AI Routing</div>
       <h2 className="demo-heading" style={{ fontSize: '32px', marginBottom: '16px' }}>
-        Critical issues are instantly identified and escalated to human experts.
+        Critical issues are instantly escalated to experts.
       </h2>
 
       {/* Workflow Stepper */}
       <AIWorkflowVisualizer currentStep={step} />
 
-      {/* Live Card */}
-      <DemoEscalation step={step} />
-
       {/* Feature highlights */}
-      <div className="demo-features" style={{ marginTop: '24px' }}>
+      <div className="demo-features" style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div className="demo-feature">
           <span className="demo-feature__check">✓</span>
           <span>97% routing accuracy &amp; classification</span>
@@ -195,23 +192,8 @@ function LoginDemoSection() {
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="demo-stats-row">
-        <div className="demo-stat">
-          <span className="demo-stat__value">98%</span>
-          <span className="demo-stat__label">faster triage</span>
-        </div>
-        <div className="demo-stat-divider" />
-        <div className="demo-stat">
-          <span className="demo-stat__value">24/7</span>
-          <span className="demo-stat__label">AI assistance</span>
-        </div>
-        <div className="demo-stat-divider" />
-        <div className="demo-stat">
-          <span className="demo-stat__value">&lt;2s</span>
-          <span className="demo-stat__label">ticket routing</span>
-        </div>
-      </div>
+      {/* Live Card */}
+      <DemoEscalation step={step} />
     </div>
   );
 }

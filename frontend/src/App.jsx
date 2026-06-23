@@ -37,6 +37,8 @@ import TicketList from "./pages/TicketList";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import UserManagement from "./pages/UserManagement";
 import TicketDetail from "./pages/TicketDetail";
+import Reports from "./pages/Reports";
+import TicketStatistics from "./pages/TicketStatistics";
 
 
 
@@ -61,6 +63,8 @@ const PAGE_TITLES = {
   "/dashboard": "Dashboard",
   "/agent-dashboard": "Agent Dashboard",
   "/tickets": "All Tickets",
+  "/tickets/cc": "CC'd Tickets",
+  "/tickets/completed": "Recently Completed",
   "/escalations": "Escalations",
   "/knowledge-base": "Knowledge Base",
   "/users": "User Management",
@@ -134,7 +138,19 @@ function AppRoutes() {
 
           <Route path="/tickets" element={
             <ProtectedRoute roles={["admin", "support_agent"]}>
-              <TicketList />
+              <TicketList mode="all" />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/tickets/cc" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <TicketList mode="cc" />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/tickets/completed" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <TicketList mode="completed" />
             </ProtectedRoute>
           } />
 
@@ -154,6 +170,18 @@ function AppRoutes() {
           <Route path="/users" element={
             <ProtectedRoute roles={["admin"]}>
               <UserManagement />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/reports" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <Reports />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/statistics" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <TicketStatistics />
             </ProtectedRoute>
           } />
 

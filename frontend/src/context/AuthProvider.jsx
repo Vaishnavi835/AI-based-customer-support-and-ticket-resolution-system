@@ -58,6 +58,15 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("user");
   };
 
+  const updateUser = (updatedFields) => {
+    setUser(prev => {
+      if (!prev) return null;
+      const newObj = { ...prev, ...updatedFields };
+      localStorage.setItem("user", JSON.stringify(newObj));
+      return newObj;
+    });
+  };
+
   const isAdmin   = user?.role === "admin";
   const isAgent   = user?.role === "support_agent";
   const isCustomer = user?.role === "customer";
@@ -75,6 +84,7 @@ export function AuthProvider({ children }) {
       isAgent,
       isCustomer,
       isStaff,
+      updateUser,
     }}>
       {children}
     </AuthContext.Provider>
