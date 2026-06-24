@@ -26,7 +26,7 @@ async def register(data: RegisterRequest):
         )
 
     user_id = str(uuid.uuid4())
-    role = Role.customer.value
+    role = data.role
     user_doc = {
         "_id": user_id,
         "name": data.name,

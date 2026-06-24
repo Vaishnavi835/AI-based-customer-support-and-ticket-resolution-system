@@ -51,5 +51,13 @@ def test_verify_access_token_rejects_invalid_token():
     assert exc_info.value.status_code == 401
 
 
-def test_register_request_does_not_accept_role():
-    assert "role" not in RegisterRequest.model_fields
+def test_register_request_accepts_role():
+    assert "role" in RegisterRequest.model_fields
+    assert RegisterRequest.model_fields["role"].default == "customer"
+    
+    # Check validator
+    req = RegisterRequest(name="Test", email="test@test.com", password="Password123!", role="support_agent")
+    assert req.role == "support_agent"
+    
+    with pytest.raises(ValueError):
+        RegisterRequest(name="Test", email="test@test.com", password="Password123!", role="invalid_role")

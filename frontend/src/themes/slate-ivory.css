@@ -1,0 +1,262 @@
+/* ══════════════════════════════════════════════════════
+   Theme B — Slate & Ivory
+   Light mode — premium consulting / enterprise portal
+   ══════════════════════════════════════════════════════ */
+
+[data-theme="slate-ivory"] {
+  /* ── Core palette ─────────────────────────── */
+  --color-bg:        #f7f3ee;
+  --color-surface:   #ffffff;
+  --color-surface-2: #f0ece6;
+  --color-border:    #e4ddd4;
+  --color-text:      #1c2333;
+  --color-muted:     #7b8499;
+  --color-primary:   #2d3a4a;
+  --color-primary-h: #1e2a38;
+  --color-danger:    #b83232;
+  --color-success:   #246a3a;
+  --color-warning:   #8a6200;
+
+  /* ── Shadows ──────────────────────────────── */
+  --shadow-sm: 0 1px 4px rgba(44,56,72,.07);
+  --shadow-md: 0 4px 24px rgba(44,56,72,.10);
+
+  /* ── Radii ────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+
+  --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+/* ── Body ──────────────────────────────────────── */
+[data-theme="slate-ivory"] body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* ── Navbar ────────────────────────────────────── */
+[data-theme="slate-ivory"] .navbar {
+  background: var(--color-primary);
+  border-bottom: none;
+  height: 56px;
+  padding: 0 32px;
+  box-shadow: 0 2px 12px rgba(29,42,56,.18);
+}
+[data-theme="slate-ivory"] .navbar__brand a {
+  color: #e8e0d5;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-theme="slate-ivory"] .navbar__links a {
+  color: rgba(232,224,213,0.65);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+[data-theme="slate-ivory"] .navbar__links a:hover {
+  color: #e8e0d5;
+  text-decoration: none;
+}
+[data-theme="slate-ivory"] .user-name {
+  color: #e8e0d5;
+}
+[data-theme="slate-ivory"] .btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(232,224,213,0.3);
+  color: rgba(232,224,213,0.7);
+}
+[data-theme="slate-ivory"] .btn-ghost:hover {
+  background: rgba(232,224,213,0.1);
+  border-color: rgba(232,224,213,0.5);
+  color: #e8e0d5;
+}
+
+/* ── Stat cards ────────────────────────────────── */
+[data-theme="slate-ivory"] .stat-card {
+  background: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 22px 20px;
+  box-shadow: var(--shadow-md);
+  border-top: 3px solid var(--color-primary);
+}
+[data-theme="slate-ivory"] .stat-value {
+  color: var(--color-primary) !important;
+  font-size: 2rem;
+  font-weight: 600;
+}
+[data-theme="slate-ivory"] .stat-label {
+  color: #9aa0ad;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+[data-theme="slate-ivory"] .stat-card--blue .stat-value   { color: #2b4a7a !important; }
+[data-theme="slate-ivory"] .stat-card--red .stat-value    { color: #8a2828 !important; }
+[data-theme="slate-ivory"] .stat-card--green .stat-value  { color: #246a3a !important; }
+[data-theme="slate-ivory"] .stat-card--yellow .stat-value { color: #7a5800 !important; }
+[data-theme="slate-ivory"] .stat-card--orange .stat-value { color: #8a4010 !important; }
+[data-theme="slate-ivory"] .stat-card--gray .stat-value   { color: #556070 !important; }
+
+/* ── Buttons ───────────────────────────────────── */
+[data-theme="slate-ivory"] .btn-primary {
+  background: var(--color-primary);
+  color: #e8e0d5;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  border-radius: var(--radius-sm);
+}
+[data-theme="slate-ivory"] .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-h);
+}
+
+/* ── Forms ─────────────────────────────────────── */
+[data-theme="slate-ivory"] .form-group input,
+[data-theme="slate-ivory"] .form-group textarea,
+[data-theme="slate-ivory"] .form-group select {
+  background: #faf7f3;
+  border: 1px solid #ddd7ce;
+  color: var(--color-text);
+}
+[data-theme="slate-ivory"] .form-group input:focus,
+[data-theme="slate-ivory"] .form-group textarea:focus,
+[data-theme="slate-ivory"] .form-group select:focus {
+  border-color: #8098b0;
+  box-shadow: 0 0 0 3px rgba(45,58,74,.10);
+}
+[data-theme="slate-ivory"] .form-group label {
+  color: #5a6272;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* ── Auth card ─────────────────────────────────── */
+[data-theme="slate-ivory"] .auth-page {
+  background: var(--color-bg);
+}
+[data-theme="slate-ivory"] .auth-card {
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 8px 40px rgba(44,56,72,.12);
+}
+[data-theme="slate-ivory"] .auth-header h1 {
+  color: var(--color-primary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ── Ticket cards ──────────────────────────────── */
+[data-theme="slate-ivory"] .ticket-card {
+  background: #ffffff;
+  border: none;
+  border-bottom: 1px solid #ede8e0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 18px 4px;
+}
+[data-theme="slate-ivory"] .ticket-card:first-child {
+  border-top: 1px solid #ede8e0;
+}
+[data-theme="slate-ivory"] .ticket-card:hover {
+  background: #faf7f3;
+  border-color: #ede8e0;
+  box-shadow: none;
+}
+[data-theme="slate-ivory"] .ticket-title {
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+[data-theme="slate-ivory"] .meta-item {
+  color: #9aa0ad;
+  font-size: 0.8rem;
+}
+[data-theme="slate-ivory"] .ticket-list {
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  padding: 0 20px;
+  box-shadow: var(--shadow-md);
+  gap: 0;
+}
+
+/* ── Badges ────────────────────────────────────── */
+[data-theme="slate-ivory"] .badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+}
+[data-theme="slate-ivory"] .badge--blue   { background: #e8eef7; color: #2b4a7a; }
+[data-theme="slate-ivory"] .badge--yellow { background: #f7f0e0; color: #7a5800; }
+[data-theme="slate-ivory"] .badge--red    { background: #f7e8e8; color: #8a2828; }
+[data-theme="slate-ivory"] .badge--green  { background: #e6f2ea; color: #246a3a; }
+[data-theme="slate-ivory"] .badge--gray   { background: #eeecea; color: #6a7080; }
+[data-theme="slate-ivory"] .badge--orange { background: #f7ede4; color: #8a4010; }
+
+/* ── Role badges ───────────────────────────────── */
+[data-theme="slate-ivory"] .role-badge--admin         { background: #e8eef7; color: #2b4a7a; }
+[data-theme="slate-ivory"] .role-badge--support_agent { background: #e6f0ec; color: #246050; }
+[data-theme="slate-ivory"] .role-badge--customer      { background: #edf0f2; color: #3a5060; }
+
+/* ── Quick links ───────────────────────────────── */
+[data-theme="slate-ivory"] .quick-link {
+  background: #ffffff;
+  border: 1px solid #ddd7ce;
+  color: #4a5466;
+  font-size: 0.85rem;
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="slate-ivory"] .quick-link:hover {
+  border-color: #8098b0;
+  color: var(--color-primary);
+  text-decoration: none;
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Form card ─────────────────────────────────── */
+[data-theme="slate-ivory"] .form-card {
+  background: #ffffff;
+  border: none;
+  box-shadow: var(--shadow-md);
+}
+[data-theme="slate-ivory"] .form-card h2 {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+/* ── Alerts ────────────────────────────────────── */
+[data-theme="slate-ivory"] .alert-error   { background: #fef2f2; color: #8a2828; border-color: #f0d0d0; }
+[data-theme="slate-ivory"] .alert-success { background: #f0f9f2; color: #246a3a; border-color: #cce8d4; }
+[data-theme="slate-ivory"] .alert-info    { background: #f0f4fa; color: #2b4a7a; border-color: #ccd8ec; }
+
+/* ── Page headers ──────────────────────────────── */
+[data-theme="slate-ivory"] .page-header h1 {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 1.6rem;
+}
+
+/* ── Main content ──────────────────────────────── */
+[data-theme="slate-ivory"] .main-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px 28px;
+}
+[data-theme="slate-ivory"] .main-content:has(.cd-page) {
+  padding: 0;
+}
+[data-theme="slate-ivory"] .main-content:has(.register-shell),
+[data-theme="slate-ivory"] .main-content:has(.auth-page) {
+  padding: 0;
+  max-width: 100%;
+}
+
+/* ── Scrollbar ─────────────────────────────────── */
+[data-theme="slate-ivory"] ::-webkit-scrollbar { width: 6px; }
+[data-theme="slate-ivory"] ::-webkit-scrollbar-track { background: #f0ece6; }
+[data-theme="slate-ivory"] ::-webkit-scrollbar-thumb { background: #ccc6bc; border-radius: 3px; }
+[data-theme="slate-ivory"] ::-webkit-scrollbar-thumb:hover { background: #8098b0; }

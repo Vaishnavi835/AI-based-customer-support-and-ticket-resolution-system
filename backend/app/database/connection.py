@@ -19,6 +19,7 @@ class Database:
     chat_col      = None
     knowledge_col = None
     escalations_col = None
+    notifications_col = None
 
 db_instance = Database()
 
@@ -38,6 +39,7 @@ async def connect_db():
         db_instance.chat_col      = db_instance.db[os.getenv("CHAT_COLLECTION",     "chat_history")]
         db_instance.knowledge_col = db_instance.db[os.getenv("KNOWLEDGE_COLLECTION","knowledge_base")]
         db_instance.escalations_col = db_instance.db[os.getenv("ESCALATIONS_COLLECTION", "escalations")]
+        db_instance.notifications_col = db_instance.db[os.getenv("NOTIFICATIONS_COLLECTION", "notifications")]
         # Ping database to confirm the connection is active
         await db_instance.client.admin.command("ping")
         logger.info(f"Successfully connected to MongoDB: {db_name}")
@@ -47,6 +49,8 @@ async def connect_db():
         await db_instance.tickets_col.create_index("priority")
         await db_instance.tickets_col.create_index("assigned_to")
         await db_instance.tickets_col.create_index("user_id")
+        await db_instance.notifications_col.create_index("user_id")
+        await db_instance.notifications_col.create_index("created_at")
         logger.info("Database indexes created")
 
     except Exception as e:

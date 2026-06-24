@@ -6,6 +6,15 @@ class RegisterRequest(BaseModel):
     name:     str = Field(..., min_length=3, max_length=100)
     email:    str = Field(..., min_length=5, max_length=100)
     password: str = Field(..., min_length=8, max_length=100)
+    role:     str = "customer"
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v):
+        allowed = ["customer", "support_agent", "admin"]
+        if v not in allowed:
+            raise ValueError(f"Invalid role: {v}. Must be one of {allowed}")
+        return v
 
     @field_validator("email")
     @classmethod

@@ -62,8 +62,11 @@ def check_keyword_trigger(message: str) -> bool:
 
 def check_turn_count_trigger(messages: list) -> bool:
     """Return True if the conversation has exceeded MAX_AI_TURNS."""
-    # Count only user turns
-    user_turns = sum(1 for m in messages if m.get("role") == "user")
+    # Count only user turns (either prompt key present, or role == "user")
+    user_turns = sum(
+        1 for m in messages
+        if m.get("prompt") is not None or m.get("role") == "user"
+    )
     return user_turns >= MAX_AI_TURNS
 
 
@@ -104,6 +107,34 @@ def detect_escalation_reason(
 
 
 # ── Core escalation operations ────────────────────────────────────────────────
+
+async def _broadcast_escalation_update(chat_id: str, ticket_id: str):
+    """Broadcast websocket updates to keep clients in sync."""
+    try:
+        from app.services.websocket_manager import manager
+        from app.services.ticket_service import get_ticket_by_id, _format_ticket_for_ws
+
+        # 1. Broadcast chat update
+        chat_event = {"type": "chat_updated", "chat_id": chat_id, "ticket_id": ticket_id}
+        db = get_db()
+        chat = await db.chat_col.find_one({"_id": chat_id})
+        if chat:
+            await manager.send_personal_message(chat_event, chat["user_id"])
+        await manager.broadcast_to_roles(chat_event, ["admin", "support_agent"])
+
+        # 2. Broadcast ticket update
+        ticket = await get_ticket_by_id(ticket_id)
+        ticket_payload = _format_ticket_for_ws(ticket)
+        ticket_event = {
+            "type": "ticket_updated",
+            "ticket": ticket_payload
+        }
+        await manager.send_personal_message(ticket_event, ticket_payload["user_id"])
+        await manager.broadcast_to_roles(ticket_event, ["admin", "support_agent"])
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to broadcast escalation update: {e}")
+
 
 async def create_escalation(
     chat_id:      str,
@@ -161,6 +192,7 @@ async def create_escalation(
         )
 
     doc["id"] = doc.pop("_id")
+    await _broadcast_escalation_update(chat_id, ticket_id)
     return doc
 
 
@@ -200,6 +232,10 @@ async def agent_takeover(
         }}
     )
 
+    ticket_id = escalation.get("ticket_id")
+    if ticket_id:
+        await _broadcast_escalation_update(chat_id, ticket_id)
+
     return {
         "message":    "Agent takeover successful",
         "chat_id":    chat_id,
@@ -236,6 +272,10 @@ async def resolve_escalation(
             "resolution_note": resolution_note,
         }}
     )
+
+    ticket_id = escalation.get("ticket_id")
+    if ticket_id:
+        await _broadcast_escalation_update(chat_id, ticket_id)
 
     return {"message": "Escalation resolved", "chat_id": chat_id}
 

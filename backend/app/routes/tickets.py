@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
-from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign, TicketReassign
+from datetime import datetime
+from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign, TicketReassign, TicketUpdateCC
 from app.services.ticket_service import (
     create_ticket,
     get_ticket_by_id,
@@ -14,11 +15,24 @@ from app.services.ticket_service import (
     get_agent_workload,
     delete_ticket,
     search_tickets,
+    update_ticket_cc,
+    get_cc_tickets,
+    get_cc_tickets_count,
+    get_completed_recent_tickets,
+    get_ticket_analytics,
 )
 from app.utils.dependencies import get_current_user, require_role
 from app.utils.roles import Role
 
 router = APIRouter(tags=["tickets"])
+
+@router.get("/analytics")
+async def ticket_analytics_route(
+    days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Analytics dashboard data. Admin and Support Agent only."""
+    return await get_ticket_analytics(days=days)
 
 
 
@@ -92,6 +106,7 @@ async def search_tickets_route(
     sort_order:     str           = Query("desc", description="Sort order: asc or desc"),
     page:           int           = Query(1,  ge=1, description="Page number"),
     limit:          int           = Query(10, ge=1, le=100, description="Items per page"),
+    resolved_after: Optional[datetime] = Query(None, description="Filter by resolved_at after timestamp"),
     current_user:   dict          = Depends(require_role(Role.admin, Role.support_agent)),
 ):
     """Advanced search with keyword search, customer email lookup, 
@@ -106,7 +121,33 @@ async def search_tickets_route(
         sort_order=sort_order,
         page=page,
         limit=limit,
+        resolved_after=resolved_after,
     )
+
+
+@router.get("/cc/count")
+async def get_cc_tickets_count_route(
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Get the number of tickets where the current user is CC'd."""
+    count = await get_cc_tickets_count(agent_id=current_user["id"])
+    return {"count": count}
+
+
+@router.get("/cc")
+async def get_cc_tickets_route(
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Get all tickets where the current user is CC'd."""
+    return await get_cc_tickets(agent_id=current_user["id"])
+
+
+@router.get("/completed-recent")
+async def get_completed_recent_tickets_route(
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Get tickets resolved or closed in the last 30 days. Handled fully on the backend."""
+    return await get_completed_recent_tickets(days=30)
 
 
 @router.get("/{ticket_id}")
@@ -146,6 +187,23 @@ async def update_ticket_route(
         changed_by=current_user["id"],
     )
 
+
+@router.patch("/{ticket_id}/cc")
+async def update_ticket_cc_route(
+    ticket_id: str,
+    data: TicketUpdateCC,
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """
+    Add or remove an agent from a ticket's CC list.
+    """
+    return await update_ticket_cc(
+        ticket_id=ticket_id,
+        data=data,
+        changed_by=current_user["id"],
+        requester_id=current_user["id"],
+        requester_role=current_user["role"],
+    )
 
 
 @router.patch("/{ticket_id}/assign")

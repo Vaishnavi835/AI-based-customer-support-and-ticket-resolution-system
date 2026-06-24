@@ -22,8 +22,18 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # ── Module-level state (loaded once at startup) ───────────────────────────────
+from app.knowledge.sample_docs import KNOWLEDGE_BASE
+
 faiss_index     = None   # FAISS index holding all doc embeddings
-doc_store       = []     # list of docs in the same order as FAISS index
+doc_store       = [
+    {
+        "id":       d["id"],
+        "title":    d["title"],
+        "category": d["category"],
+        "content":  d["content"],
+    }
+    for d in KNOWLEDGE_BASE
+]     # list of docs in the same order as FAISS index
 embedding_model = None   # SentenceTransformer model
 
 
@@ -41,6 +51,7 @@ async def initialize_rag():
 
     try:
         import faiss
+        # pyrefly: ignore [missing-import]
         from sentence_transformers import SentenceTransformer
 
         logger.info("RAG: Loading embedding model (all-MiniLM-L6-v2)...")
@@ -48,24 +59,37 @@ async def initialize_rag():
         logger.info("RAG: Embedding model loaded")
 
         # Load docs from MongoDB (seeded from sample_docs.py on first startup)
-        from app.database.connection import get_db
-        col  = get_db().knowledge_col
-        docs = await col.find({}).to_list(1000)
+        docs = []
+        try:
+            from app.database.connection import get_db
+            db_inst = get_db()
+            if db_inst and db_inst.knowledge_col is not None:
+                db_docs = await db_inst.knowledge_col.find({}).to_list(1000)
+                docs = [
+                    {
+                        "id":       d["_id"],
+                        "title":    d["title"],
+                        "category": d["category"],
+                        "content":  d["content"],
+                    }
+                    for d in db_docs
+                ]
+        except Exception as db_err:
+            logger.warning(f"RAG: MongoDB query failed during init ({db_err}) — using static KNOWLEDGE_BASE fallback")
 
         if not docs:
-            logger.warning("RAG: No documents in knowledge_base collection — index not built")
-            return
+            from app.knowledge.sample_docs import KNOWLEDGE_BASE
+            docs = [
+                {
+                    "id":       d["id"],
+                    "title":    d["title"],
+                    "category": d["category"],
+                    "content":  d["content"],
+                }
+                for d in KNOWLEDGE_BASE
+            ]
 
-        # Normalize to the shape the rest of the service expects
-        doc_store = [
-            {
-                "id":       d["_id"],
-                "title":    d["title"],
-                "category": d["category"],
-                "content":  d["content"],
-            }
-            for d in docs
-        ]
+        doc_store = docs
         texts = [doc["content"] for doc in doc_store]
 
         logger.info(f"RAG: Embedding {len(texts)} knowledge base documents...")
@@ -110,27 +134,39 @@ async def reindex_rag():
         return
 
     try:
+        # pyrefly: ignore [missing-import]
         import faiss
-        from app.database.connection import get_db
-
-        col  = get_db().knowledge_col
-        docs = await col.find({}).to_list(1000)
+        docs = []
+        try:
+            from app.database.connection import get_db
+            db_inst = get_db()
+            if db_inst and db_inst.knowledge_col is not None:
+                db_docs = await db_inst.knowledge_col.find({}).to_list(1000)
+                docs = [
+                    {
+                        "id":       d["_id"],
+                        "title":    d["title"],
+                        "category": d["category"],
+                        "content":  d["content"],
+                    }
+                    for d in db_docs
+                ]
+        except Exception as db_err:
+            logger.warning(f"RAG: MongoDB query failed during reindex ({db_err}) — using static KNOWLEDGE_BASE fallback")
 
         if not docs:
-            faiss_index = None
-            doc_store   = []
-            logger.info("RAG: Index cleared (no documents in knowledge base)")
-            return
+            from app.knowledge.sample_docs import KNOWLEDGE_BASE
+            docs = [
+                {
+                    "id":       d["id"],
+                    "title":    d["title"],
+                    "category": d["category"],
+                    "content":  d["content"],
+                }
+                for d in KNOWLEDGE_BASE
+            ]
 
-        doc_store = [
-            {
-                "id":       d["_id"],
-                "title":    d["title"],
-                "category": d["category"],
-                "content":  d["content"],
-            }
-            for d in docs
-        ]
+        doc_store = docs
         texts      = [doc["content"] for doc in doc_store]
         embeddings = embedding_model.encode(texts, convert_to_numpy=True).astype(np.float32)
 
