@@ -40,6 +40,22 @@ def _history_entry(changed_by: str, field: str, old_value: str, new_value: str) 
     }
 
 
+def _format_ticket_for_ws(ticket: dict) -> dict:
+    """Format ticket dictionary for websocket transmission (serialize datetimes)."""
+    if not ticket:
+        return ticket
+    formatted = ticket.copy()
+    for k, v in formatted.items():
+        if isinstance(v, datetime):
+            formatted[k] = v.isoformat()
+        if k == "history" and isinstance(v, list):
+            formatted[k] = [
+                {hk: (hv.isoformat() if isinstance(hv, datetime) else hv) for hk, hv in entry.items()}
+                for entry in v
+            ]
+    return formatted
+
+
 
 
 async def create_ticket(ticket: TicketCreate, user_id: str) -> dict:
@@ -206,6 +222,11 @@ async def update_ticket(
 
         fields["status"] = new_status
         history.append(_history_entry(changed_by, "status", current_status, new_status))
+
+        if new_status in [Status.resolved.value, Status.closed.value]:
+            fields["resolved_at"] = _now()
+        elif current_status in [Status.resolved.value, Status.closed.value] and new_status not in [Status.resolved.value, Status.closed.value]:
+            fields["resolved_at"] = None
 
     if updates.priority is not None:
         current_priority = ticket.get("priority", Priority.medium.value)
@@ -624,24 +645,41 @@ async def get_ticket_analytics(days: int = 30) -> dict:
     cutoff_date = _now() - timedelta(days=days)
     
     # 1. Volume Trend (Tickets opened vs resolved per day)
-    trend_pipeline = [
+    opened_pipeline = [
         {"$match": {"created_at": {"$gte": cutoff_date}}},
         {
             "$group": {
                 "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
-                "opened": {"$sum": 1},
-                "resolved": {
-                    "$sum": {"$cond": [{"$in": ["$status", ["resolved", "closed"]]}, 1, 0]}
-                }
+                "opened": {"$sum": 1}
             }
-        },
-        {"$sort": {"_id": ASCENDING}}
+        }
     ]
-    trend_cursor = col.aggregate(trend_pipeline)
-    trend_data = await trend_cursor.to_list(100)
+    opened_cursor = col.aggregate(opened_pipeline)
+    opened_data = await opened_cursor.to_list(100)
     
-    trend = [{"date": doc["_id"], "opened": doc["opened"], "resolved": doc["resolved"]} for doc in trend_data]
-    date_map = {item["date"]: item for item in trend}
+    resolved_pipeline = [
+        {"$match": {
+            "status": {"$in": ["resolved", "closed"]},
+            "resolved_at": {"$gte": cutoff_date}
+        }},
+        {
+            "$group": {
+                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$resolved_at"}},
+                "resolved": {"$sum": 1}
+            }
+        }
+    ]
+    resolved_cursor = col.aggregate(resolved_pipeline)
+    resolved_data = await resolved_cursor.to_list(100)
+
+    date_map = {}
+    for doc in opened_data:
+        date_map[doc["_id"]] = {"date": doc["_id"], "opened": doc["opened"], "resolved": 0}
+    for doc in resolved_data:
+        if doc["_id"] not in date_map:
+            date_map[doc["_id"]] = {"date": doc["_id"], "opened": 0, "resolved": 0}
+        date_map[doc["_id"]]["resolved"] = doc["resolved"]
+
     filled_trend = []
     for i in range(days + 1):
         d_str = (cutoff_date + timedelta(days=i)).strftime("%Y-%m-%d")

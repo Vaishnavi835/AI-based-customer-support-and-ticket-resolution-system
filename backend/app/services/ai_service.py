@@ -9,7 +9,9 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 SYSTEM_PROMPT = """
 You are a helpful customer support assistant.
-Provide clear, concise, and professional responses.
+First, determine if you have enough details from the customer to understand their specific issue.
+If their request is vague or lacks necessary details, politely ask clarifying questions before attempting to provide a solution.
+Once you have enough details, provide clear, concise, and professional responses.
 """
 
 
@@ -21,7 +23,7 @@ async def generate_ai_response(user_message: str) -> str:
         )
         return response.text
     except Exception as e:
-        return f"AI service error: {str(e)}"
+        raise e
 
 
 async def generate_contextual_response(
@@ -53,7 +55,7 @@ Status: {ticket_context.get("status", "")}
         return response.text
 
     except Exception as e:
-        return f"AI service error: {str(e)}"
+        raise e
 
 
 async def summarize_conversation(
@@ -73,7 +75,7 @@ async def summarize_conversation(
         return response.text
 
     except Exception as e:
-        return f"Summary generation error: {str(e)}"
+        raise e
     
 async def classify_ticket(
     title: str,

@@ -50,7 +50,7 @@ async def get_ai_response(
     message: str,
     conversation_history: list,
     ticket_context: dict,
-) -> str:
+) -> tuple[str, list]:
     if is_rag_ready():
         return await generate_rag_response(
             question=message,
@@ -58,10 +58,11 @@ async def get_ai_response(
             ticket_context=ticket_context,
         )
     else:
-        return await generate_contextual_response(
+        text = await generate_contextual_response(
             conversation_history=conversation_history,
             ticket_context=ticket_context,
         )
+        return text, []
 
 
 # ── Start chat ────────────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ async def start_chat(
 
     escalated_on_start = False
     try:
-        ai_response = await get_ai_response(
+        ai_response, sources = await get_ai_response(
             message=data.message,
             conversation_history=[{"role": "user", "content": data.message}],
             ticket_context=ticket,
@@ -100,6 +101,7 @@ async def start_chat(
             "I'm having trouble processing your request right now. "
             "A support agent has been notified and will assist you shortly."
         )
+        sources = []
         escalated_on_start = str(e)
 
     doc = {
@@ -116,6 +118,7 @@ async def start_chat(
                 "response":  ai_response,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "rag_used":  is_rag_ready(),
+                "sources":   sources,
             }
         ],
         "created_at": datetime.now(timezone.utc),
@@ -279,7 +282,7 @@ async def add_message(
 
     # Normal RAG response
     try:
-        ai_response = await get_ai_response(
+        ai_response, sources = await get_ai_response(
             message=msg.content,
             conversation_history=history_for_ai,
             ticket_context=ticket,
@@ -290,6 +293,7 @@ async def add_message(
             "response":  ai_response,
             "timestamp": now,
             "rag_used":  is_rag_ready(),
+            "sources":   sources,
         }
         await col.update_one(
             {"_id": chat_id},

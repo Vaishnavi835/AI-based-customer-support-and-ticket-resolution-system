@@ -254,19 +254,13 @@ async def generate_rag_response(
     question:             str,
     conversation_history: Optional[list] = None,   # Day 19: NEW param
     ticket_context:       Optional[dict] = None,
-) -> str:
+) -> tuple[str, list]:
     """
     Full RAG pipeline:
       1. Search knowledge base (with threshold filtering)
       2. Build augmented prompt: ticket + recent history + KB docs + question
       3. Call Gemini
-      4. Return grounded answer
-
-    Day 19 addition — conversation_history:
-      Without this, every reply treats the conversation as if it just started.
-      Gemini has no idea the user already tried clearing the cache.
-      Passing the last 4 messages fixes this — the AI can say
-      "Since clearing the cache didn't work, let's try..."
+      4. Return grounded answer and sources
     """
     from app.services.ai_service import client
 
@@ -284,14 +278,11 @@ async def generate_rag_response(
             model="gemini-2.5-flash",
             contents=prompt,
         )
-        return response.text
+        return response.text, relevant_docs
 
     except Exception as e:
         logger.error(f"RAG: Gemini call failed: {e}")
-        return (
-            "I'm having trouble generating a response right now. "
-            "A support agent has been notified."
-        )
+        raise e
 
 
 # ── 5. _build_rag_prompt ──────────────────────────────────────────────────────
@@ -315,7 +306,9 @@ def _build_rag_prompt(
     """
     prompt = (
         "You are a helpful customer support assistant. "
-        "Answer the customer's question using ONLY the knowledge base "
+        "First, determine if you have enough details from the customer to understand their specific issue. "
+        "If their request is vague or lacks necessary details, politely ask clarifying questions before attempting to provide a solution. "
+        "Once you have enough details, answer the customer's question using ONLY the knowledge base "
         "information provided below. "
         "If the answer is not in the knowledge base, say so honestly "
         "and offer to connect them with a human agent.\n\n"
