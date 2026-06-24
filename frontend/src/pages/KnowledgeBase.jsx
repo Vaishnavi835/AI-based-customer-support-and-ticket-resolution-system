@@ -7,8 +7,10 @@ export default function KnowledgeBase() {
   const [loading, setLoading] = useState(true);
 
   const [isWriting, setIsWriting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
+  const [newCategory, setNewCategory] = useState("General");
   const [searchQuery, setSearchQuery] = useState("");
 
   const loadArticles = () => {
@@ -26,15 +28,38 @@ export default function KnowledgeBase() {
   const handlePublish = async () => {
     if (!newTitle || !newContent) return alert("Title and Content required!");
     try {
-      await kbAPI.add(newTitle, "General", newContent);
-      alert("Article successfully published to Vector Database!");
+      if (editingId) {
+        await kbAPI.update(editingId, { title: newTitle, category: newCategory, content: newContent });
+        alert("Article successfully updated in the Vector Database!");
+      } else {
+        await kbAPI.add(newTitle, newCategory, newContent);
+        alert("Article successfully published to Vector Database!");
+      }
       setIsWriting(false);
+      setEditingId(null);
       setNewTitle("");
       setNewContent("");
+      setNewCategory("General");
       loadArticles();
     } catch (err) {
-      alert("Failed to publish: " + err);
+      alert(`Failed to ${editingId ? 'update' : 'publish'}: ` + err);
     }
+  };
+
+  const handleEdit = (article) => {
+    setEditingId(article.id);
+    setNewTitle(article.title);
+    setNewContent(article.content || "");
+    setNewCategory(article.category || "General");
+    setIsWriting(true);
+  };
+
+  const handleCancel = () => {
+    setIsWriting(false);
+    setEditingId(null);
+    setNewTitle("");
+    setNewContent("");
+    setNewCategory("General");
   };
 
   const handleDelete = async (docId) => {
@@ -67,19 +92,40 @@ export default function KnowledgeBase() {
 
       {isWriting ? (
         <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 2px rgba(15,23,42,0.04)' }}>
-          <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px' }}>Draft New Article</h3>
+          <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '16px' }}>
+            {editingId ? "Edit Article" : "Draft New Article"}
+          </h3>
           
-          <div className="cd-field">
-            <label>Article Title</label>
-            <input 
-              value={newTitle} 
-              onChange={e => setNewTitle(e.target.value)} 
-              placeholder="e.g. How to use the API..." 
-              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px' }}
-            />
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+            <div className="cd-field" style={{ flex: 2 }}>
+              <label>Article Title</label>
+              <input 
+                value={newTitle} 
+                onChange={e => setNewTitle(e.target.value)} 
+                placeholder="e.g. How to use the API..." 
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px' }}
+              />
+            </div>
+            <div className="cd-field" style={{ flex: 1 }}>
+              <label>Category</label>
+              <select 
+                value={newCategory} 
+                onChange={e => setNewCategory(e.target.value)} 
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '15px', backgroundColor: '#fff', cursor: 'pointer' }}
+              >
+                <option value="technical">Technical</option>
+                <option value="account">Account</option>
+                <option value="billing">Billing</option>
+                <option value="authentication">Authentication</option>
+                <option value="general">General</option>
+                <option value="policies">Company Policies</option>
+                <option value="product">Product Features</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
           </div>
 
-          <div className="cd-field" style={{ marginTop: '16px' }}>
+          <div className="cd-field">
             <label>Article Content</label>
             <textarea 
               value={newContent} 
@@ -91,8 +137,10 @@ export default function KnowledgeBase() {
           </div>
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-            <button className="cd-btn cd-btn--primary" onClick={handlePublish}>Publish to Vector DB</button>
-            <button className="cd-btn cd-btn--ghost" onClick={() => setIsWriting(false)}>Cancel</button>
+            <button className="cd-btn cd-btn--primary" onClick={handlePublish}>
+              {editingId ? "Update Vector DB" : "Publish to Vector DB"}
+            </button>
+            <button className="cd-btn cd-btn--ghost" onClick={handleCancel}>Cancel</button>
           </div>
         </div>
       ) : (
@@ -137,7 +185,7 @@ export default function KnowledgeBase() {
                     {new Date(a.updated_at || a.created_at || Date.now()).toLocaleDateString()}
                   </td>
                   <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                    <button onClick={() => alert('Edit coming soon!')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', marginRight: '8px' }}><Edit3 size={18} /></button>
+                    <button onClick={() => handleEdit(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', marginRight: '8px' }}><Edit3 size={18} /></button>
                     <button onClick={() => handleDelete(a.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }}><Trash2 size={18} /></button>
                   </td>
                 </tr>
