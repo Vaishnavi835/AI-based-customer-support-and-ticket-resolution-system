@@ -179,26 +179,26 @@ export const ragAPI = {
 export const kbAPI = {
   /** List all KB documents (admin/agent). */
   list: (category = null) =>
-    api.get("/kb/", { params: category ? { category } : {} }),
+    api.get("/rag/knowledge-base", { params: category ? { category } : {} }),
 
   /** Get a single KB document. */
-  get: (docId) => api.get(`/kb/${docId}`),
+  get: (docId) => api.get(`/rag/knowledge-base/${docId}`),
 
   /** Add a new KB document (admin only). */
   add: (title, category, content) =>
-    api.post("/kb/", { title, category, content }),
+    api.post("/rag/knowledge-base", { title, category, content }),
 
   /** Update a KB document (admin only). */
-  update: (docId, updates) => api.patch(`/kb/${docId}`, updates),
+  update: (docId, updates) => api.put(`/rag/knowledge-base/${docId}`, updates),
 
   /** Delete a KB document (admin only). */
-  delete: (docId) => api.delete(`/kb/${docId}`),
+  delete: (docId) => api.delete(`/rag/knowledge-base/${docId}`),
 
   /** Manually trigger FAISS reindex (admin only). */
-  reindex: () => api.post("/kb/reindex"),
+  reindex: () => api.post("/rag/reindex"),
 
   /** List valid categories. */
-  categories: () => api.get("/kb/categories"),
+  categories: () => api.get("/rag/knowledge-base"), // Note: lists categories in response
 };
 
 // ── Users ─────────────────────────────────────────────────────────────────────

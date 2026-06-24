@@ -5,9 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import { notificationsAPI } from '../api/services';
 import { useWebSocketEvent } from '../context/WebSocketContext';
 
-const formatTime = (isoString) => {
+const formatTime = (isoString, nowMs) => {
   if (!isoString) return '';
-  const m = Math.floor((Date.now() - new Date(isoString)) / 60_000);
+  const m = Math.floor((nowMs - new Date(isoString).getTime()) / 60_000);
   if (m < 1) return 'Just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
@@ -21,6 +21,12 @@ export default function TopBar({ title, onToggleSidebar }) {
   const [notifications, setNotifications] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -125,7 +131,7 @@ export default function TopBar({ title, onToggleSidebar }) {
                       <div className="topbar__notif-dot" style={{ opacity: n.unread ? 1 : 0 }} />
                       <div>
                         <div className="topbar__notif-text">{n.text}</div>
-                        <div className="topbar__notif-time">{formatTime(n.created_at)}</div>
+                        <div className="topbar__notif-time">{formatTime(n.created_at, now)}</div>
                       </div>
                     </div>
                   ))

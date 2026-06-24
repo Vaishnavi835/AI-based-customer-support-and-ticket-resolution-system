@@ -1,31 +1,57 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, FilePlus, Search, Edit3, Trash2 } from "lucide-react";
+import { kbAPI } from "../api/services";
 
 export default function KnowledgeBase() {
-  const [articles, setArticles] = useState([
-    { id: 1, title: "How to reset your password", category: "Account", status: "Published", date: "2026-06-12" },
-    { id: 2, title: "Understanding Billing Cycles", category: "Billing", status: "Draft", date: "2026-06-15" },
-    { id: 3, title: "API Rate Limits", category: "Technical", status: "Published", date: "2026-06-18" },
-  ]);
+  const [articles, setArticles] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [isWriting, setIsWriting] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const handlePublish = () => {
-    if (!newTitle || !newContent) return alert("Title and Content required!");
-    setArticles([...articles, {
-      id: Date.now(),
-      title: newTitle,
-      category: "General",
-      status: "Published",
-      date: new Date().toISOString().split('T')[0]
-    }]);
-    setIsWriting(false);
-    setNewTitle("");
-    setNewContent("");
-    alert("Article successfully published to Vector Database!");
+  const loadArticles = () => {
+    setLoading(true);
+    kbAPI.list()
+      .then(res => setArticles(res.data.documents || []))
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    loadArticles();
+  }, []);
+
+  const handlePublish = async () => {
+    if (!newTitle || !newContent) return alert("Title and Content required!");
+    try {
+      await kbAPI.add(newTitle, "General", newContent);
+      alert("Article successfully published to Vector Database!");
+      setIsWriting(false);
+      setNewTitle("");
+      setNewContent("");
+      loadArticles();
+    } catch (err) {
+      alert("Failed to publish: " + err);
+    }
+  };
+
+  const handleDelete = async (docId) => {
+    if (!window.confirm("Are you sure you want to delete this document?")) return;
+    try {
+      await kbAPI.delete(docId);
+      loadArticles();
+    } catch (err) {
+      alert("Failed to delete: " + err);
+    }
+  };
+
+  const filtered = articles.filter(a => 
+    !searchQuery || 
+    a.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    a.category?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="cd-page" style={{ padding: '32px' }}>
@@ -53,7 +79,7 @@ export default function KnowledgeBase() {
             />
           </div>
 
-          <div className="cd-field">
+          <div className="cd-field" style={{ marginTop: '16px' }}>
             <label>Article Content</label>
             <textarea 
               value={newContent} 
@@ -77,6 +103,8 @@ export default function KnowledgeBase() {
               <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <input 
                 type="text" 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search articles..." 
                 style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
               />
@@ -88,25 +116,29 @@ export default function KnowledgeBase() {
               <tr style={{ background: '#F8FAFC', color: '#64748B', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 <th style={{ padding: '16px 24px', fontWeight: '600' }}>Article Title</th>
                 <th style={{ padding: '16px 24px', fontWeight: '600' }}>Category</th>
-                <th style={{ padding: '16px 24px', fontWeight: '600' }}>Status</th>
                 <th style={{ padding: '16px 24px', fontWeight: '600' }}>Last Updated</th>
                 <th style={{ padding: '16px 24px', fontWeight: '600', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {articles.map(a => (
+              {loading ? (
+                <tr>
+                  <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>Loading articles...</td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>No articles found.</td>
+                </tr>
+              ) : filtered.map(a => (
                 <tr key={a.id} style={{ borderTop: '1px solid #E2E8F0' }}>
                   <td style={{ padding: '16px 24px', fontWeight: '500', color: '#0F172A' }}>{a.title}</td>
                   <td style={{ padding: '16px 24px', color: '#64748B', fontSize: '14px' }}>{a.category}</td>
-                  <td style={{ padding: '16px 24px' }}>
-                    <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: '600', background: a.status === 'Published' ? '#DCFCE7' : '#FEF3C7', color: a.status === 'Published' ? '#16A34A' : '#D97706' }}>
-                      {a.status}
-                    </span>
+                  <td style={{ padding: '16px 24px', color: '#64748B', fontSize: '14px' }}>
+                    {new Date(a.updated_at || a.created_at || Date.now()).toLocaleDateString()}
                   </td>
-                  <td style={{ padding: '16px 24px', color: '#64748B', fontSize: '14px' }}>{a.date}</td>
                   <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', marginRight: '8px' }}><Edit3 size={18} /></button>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }}><Trash2 size={18} /></button>
+                    <button onClick={() => alert('Edit coming soon!')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', marginRight: '8px' }}><Edit3 size={18} /></button>
+                    <button onClick={() => handleDelete(a.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }}><Trash2 size={18} /></button>
                   </td>
                 </tr>
               ))}
