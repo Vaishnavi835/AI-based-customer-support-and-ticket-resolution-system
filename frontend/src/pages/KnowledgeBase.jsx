@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { BookOpen, FilePlus, Search, Edit3, Trash2 } from "lucide-react";
 import { kbAPI } from "../api/services";
+import { SkeletonTableRow } from "../components/SkeletonCard";
 
 export default function KnowledgeBase() {
   const [articles, setArticles] = useState([]);
@@ -170,9 +171,9 @@ export default function KnowledgeBase() {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>Loading articles...</td>
-                </tr>
+                [1, 2, 3, 4, 5].map(i => (
+                  <SkeletonTableRow key={i} cols={4} />
+                ))
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#94A3B8' }}>No articles found.</td>

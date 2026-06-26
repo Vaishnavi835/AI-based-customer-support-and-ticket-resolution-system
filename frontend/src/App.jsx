@@ -71,6 +71,8 @@ const PAGE_TITLES = {
   "/my-tickets": "My Tickets",
   "/my-tickets/new": "New Ticket",
   "/my-tickets/history": "Ticket History",
+  "/my-tickets/analytics": "My Analytics",
+  "/my-tickets/ai-suggestions": "AI Copilot & Suggestions",
   "/profile": "Profile",
 };
 
@@ -118,6 +120,16 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
           <Route path="/my-tickets/history" element={
+            <ProtectedRoute roles={["customer"]}>
+              <MyTickets />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-tickets/analytics" element={
+            <ProtectedRoute roles={["customer"]}>
+              <MyTickets />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-tickets/ai-suggestions" element={
             <ProtectedRoute roles={["customer"]}>
               <MyTickets />
             </ProtectedRoute>

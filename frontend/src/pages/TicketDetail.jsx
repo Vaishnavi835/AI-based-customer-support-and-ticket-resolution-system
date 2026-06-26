@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { SkeletonCard, SkeletonChatBubble } from "../components/SkeletonCard";
 import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Sparkles, User, Tag, BarChart3, Activity, AtSign } from "lucide-react";
+import { useToast } from "../context/ToastContext";
+
 
 /**
  * TypewriterText
@@ -47,10 +49,82 @@ const getAIConfidence = (ticket) => {
   return 91;
 };
 
+const getResolutionSteps = (category) => {
+  const cat = (category || "").toLowerCase();
+  if (cat.includes("bill") || cat.includes("pay")) {
+    return [
+      "Verify billing transaction logs & transaction ID.",
+      "Check account ledger for double-billing / duplicate charges.",
+      "Verify credentials match user profile bank zip records.",
+      "Initiate merchant refund protocol if double charge confirmed."
+    ];
+  }
+  if (cat.includes("tech") || cat.includes("api") || cat.includes("server") || cat.includes("bug")) {
+    return [
+      "Confirm user auth headers are structured correctly ('Bearer <token>').",
+      "Inspect webhook retry logs and API delivery payloads.",
+      "Verify server console output logs for client request trace ID.",
+      "Instruct customer to perform cache flush or local storage purge."
+    ];
+  }
+  if (cat.includes("account") || cat.includes("login") || cat.includes("profile") || cat.includes("user")) {
+    return [
+      "Verify password attempt failure thresholds and lockout status.",
+      "Send secure email verification / password reset validation link.",
+      "Inspect active sessions device list for geographical anomalies.",
+      "Validate user group permissions & database access controls."
+    ];
+  }
+  return [
+    "Review related Knowledge Base policy documents.",
+    "Request clear issue reproduction steps or screenshot file.",
+    "Check backend service telemetry and service health dashboards.",
+    "Prepare case escalation briefing details if L2 routing is required."
+  ];
+};
+
+const getAITriageDetails = (ticket) => {
+  if (!ticket) return { sentiment: "Neutral", keywords: ["general"], routing: "L1 Support Queue" };
+  const cat = (ticket.category || "").toLowerCase();
+  const desc = (ticket.description || "").toLowerCase();
+  const title = (ticket.title || "").toLowerCase();
+  
+  let sentiment = "Inquisitive / Neutral";
+  let keywords = ["ticket"];
+  let routing = "General Support Queue";
+  
+  if (ticket.priority === "critical" || ticket.priority === "high") {
+    sentiment = "Urgent / Frustrated 🔴";
+  } else if (ticket.priority === "medium") {
+    sentiment = "Concerned / Neutral 🟡";
+  } else {
+    sentiment = "Polite / Patient 🟢";
+  }
+  
+  if (cat.includes("bill") || title.includes("refund") || title.includes("payment") || desc.includes("charge")) {
+    keywords = ["billing", "payment", "transaction", "invoice"];
+    routing = "Automated Billing Autopilot";
+  } else if (cat.includes("tech") || title.includes("api") || title.includes("server") || desc.includes("error")) {
+    keywords = ["api", "server", "authentication", "webhooks"];
+    routing = "Technical Specialist Tier-2";
+  } else if (cat.includes("account") || title.includes("login") || title.includes("password") || desc.includes("password")) {
+    keywords = ["login", "credentials", "account-access", "security"];
+    routing = "Account Access Autopilot";
+  } else {
+    keywords = ["inquiry", "general-info", "support"];
+    routing = "General L1 Router";
+  }
+  
+  return { sentiment, keywords, routing };
+};
+
+
+
 export default function TicketDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
 
   const [ticket, setTicket]     = useState(null);
   const [chats, setChats]       = useState([]);
@@ -133,9 +207,20 @@ export default function TicketDetail() {
   const handleStatusChange = async (newStatus) => {
     try {
       await ticketsAPI.update(id, { status: newStatus });
+      toast.success(`Ticket status updated to ${newStatus}`);
       await loadData();
     } catch (err) {
-      alert(err.response?.data?.detail || "Cannot change status");
+      toast.error(err.response?.data?.detail || "Cannot change status");
+    }
+  };
+
+  const handleApplyResolution = async () => {
+    try {
+      await ticketsAPI.update(id, { status: "resolved" });
+      toast.success("Resolution applied successfully! Ticket resolved.");
+      await loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to resolve ticket");
     }
   };
 
@@ -239,6 +324,7 @@ export default function TicketDetail() {
             timestamp: timeVal,
             agent_id: msg.agent_id,
             rag_used: msg.rag_used,
+            sources: msg.sources,
           });
         }
       });
@@ -247,11 +333,11 @@ export default function TicketDetail() {
 
   const confidence = getAIConfidence(ticket);
   const statusColorMap = {
-    open: { bg: '#DBEAFE', text: '#2563EB', border: '#93C5FD' },
-    pending: { bg: '#FEF3C7', text: '#D97706', border: '#FDE68A' },
-    escalated: { bg: '#FEE2E2', text: '#DC2626', border: '#FCA5A5' },
-    resolved: { bg: '#D1FAE5', text: '#059669', border: '#6EE7B7' },
-    closed: { bg: '#F3F4F6', text: '#6B7280', border: '#D1D5DB' },
+    open:      { label: "🟢 Open", bg: "#EFF6FF", text: "#1E40AF", border: "#BFDBFE" },
+    pending:   { label: "🟡 Pending", bg: "#FEF3C7", text: "#92400E", border: "#FDE68A" },
+    escalated: { label: "🔴 Escalated", bg: "#FEE2E2", text: "#991B1B", border: "#FCA5A5" },
+    resolved:  { label: "✅ Resolved", bg: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
+    closed:    { label: "⏹ Closed", bg: "#F3F4F6", text: "#374151", border: "#E5E7EB" },
   };
   const priorityColorMap = {
     high: { bg: '#FEE2E2', text: '#DC2626', border: '#FCA5A5' },
@@ -278,8 +364,8 @@ export default function TicketDetail() {
           </h1>
         </div>
         <div className="td-header__badges">
-          <span className="td-badge" style={{ background: statusColors.bg, color: statusColors.text, border: `1px solid ${statusColors.border}` }}>
-            {ticket.status}
+          <span className="td-badge" style={{ background: statusColors.bg, color: statusColors.text, border: `1px solid ${statusColors.border}`, textTransform: 'none' }}>
+            {statusColors.label}
           </span>
           <span className="td-badge" style={{ background: priorityColors.bg, color: priorityColors.text, border: `1px solid ${priorityColors.border}` }}>
             {ticket.priority} priority
@@ -412,11 +498,11 @@ export default function TicketDetail() {
                           <span>{msg.content}</span>
                         )}
                         
-                        {isAi && msg.rag_used && (
+                        {isAi && msg.rag_used && msg.sources && msg.sources.length > 0 && (
                           <div className="td-rag-source">
                             <div className="td-rag-source__label">📚 Source Used</div>
-                            <div className="td-rag-source__title">Refund Policy v2.1</div>
-                            <div className="td-rag-source__meta">Last Updated: 2 days ago</div>
+                            <div className="td-rag-source__title">{msg.sources[0].title}</div>
+                            <div className="td-rag-source__meta">Category: {msg.sources[0].category}</div>
                           </div>
                         )}
 
@@ -541,8 +627,8 @@ export default function TicketDetail() {
             
             <div className="td-dp-field">
               <span className="td-dp-label">Status</span>
-              <span className="td-dp-badge" style={{ background: statusColors.bg, color: statusColors.text, border: `1px solid ${statusColors.border}` }}>
-                {ticket.status}
+              <span className="td-dp-badge" style={{ background: statusColors.bg, color: statusColors.text, border: `1px solid ${statusColors.border}`, textTransform: 'none' }}>
+                {statusColors.label}
               </span>
             </div>
 
@@ -630,28 +716,55 @@ export default function TicketDetail() {
             </div>
           </div>
 
-          {/* Section: AI Confidence */}
-          <div className="td-dp-section">
-            <h3 className="td-dp-section__title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Section: AI Analysis & Triage */}
+          <div className="td-dp-section" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h3 className="td-dp-section__title" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#7C3AED' }}>
               <BarChart3 size={14} style={{ color: '#7C3AED' }} />
-              AI Confidence
+              AI Analysis & Triage
             </h3>
-            <div className="td-confidence">
+            
+            <div className="td-confidence" style={{ marginBottom: '8px' }}>
               <div className="td-confidence__header">
-                <span className="td-confidence__label">Classification Score</span>
-                <span className="td-confidence__value">{confidence}%</span>
+                <span className="td-confidence__label" style={{ fontWeight: '600' }}>Confidence Score</span>
+                <span className="td-confidence__value" style={{ fontWeight: '800', color: '#7C3AED' }}>{confidence}%</span>
               </div>
               <div className="td-confidence__bar">
                 <div 
                   className="td-confidence__fill" 
-                  style={{ width: `${confidence}%` }}
+                  style={{ width: `${confidence}%`, background: '#7C3AED' }}
                 />
               </div>
-              <div className="td-confidence__detail">
-                <span>Model: GPT-4 Turbo</span>
+              <div className="td-confidence__detail" style={{ fontSize: '11px', color: '#64748B' }}>
+                <span>Model: Gemini 2.5 Flash</span>
                 <span>Latency: ~1.2s</span>
               </div>
             </div>
+
+            {(() => {
+              const triage = getAITriageDetails(ticket);
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px dashed #E2E8F0', paddingTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                    <span style={{ color: '#64748B', fontWeight: '600' }}>Sentiment:</span>
+                    <span style={{ color: '#1E293B', fontWeight: '700' }}>{triage.sentiment}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                    <span style={{ color: '#64748B', fontWeight: '600' }}>Auto-Route Destination:</span>
+                    <span style={{ color: '#0F172A', fontWeight: '700' }}>{triage.routing}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12.5px', marginTop: '2px' }}>
+                    <span style={{ color: '#64748B', fontWeight: '600' }}>Extracted Key Tokens:</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+                      {triage.keywords.map(kw => (
+                        <span key={kw} style={{ background: '#F3E8FF', color: '#6B21A8', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>
+                          #{kw}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Section: Activity Timeline */}
@@ -721,6 +834,74 @@ export default function TicketDetail() {
                 <span>Avg response</span>
                 <span style={{ fontWeight: '700', color: '#0F172A' }}>3 min</span>
               </div>
+            </div>
+          )}
+
+          {/* Section: AI Suggested Resolution (agents/admins only) */}
+          {user.role !== 'customer' && (
+            <div className="td-dp-section" style={{
+              background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)',
+              border: '1.5px solid #E9D5FF',
+              borderRadius: '12px',
+              padding: '16px 20px',
+              boxShadow: '0 4px 12px rgba(139, 92, 246, 0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              marginBottom: '20px'
+            }}>
+              <h3 className="td-dp-section__title" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#6B21A8', border: 'none', padding: 0, margin: 0 }}>
+                <Sparkles size={15} style={{ color: '#8B5CF6' }} />
+                AI Suggested Resolution
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                {getResolutionSteps(ticket.category).map((step, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12.5px', color: '#4C1D95', lineHeight: '1.4' }}>
+                    <span style={{ color: (ticket.status === 'resolved' || ticket.status === 'closed') ? '#10B981' : '#8B5CF6', fontWeight: 'bold', fontSize: '13px', flexShrink: 0 }}>
+                      {(ticket.status === 'resolved' || ticket.status === 'closed') ? '✓' : '•'}
+                    </span>
+                    <span style={{ textDecoration: (ticket.status === 'resolved' || ticket.status === 'closed') ? 'line-through' : 'none', opacity: (ticket.status === 'resolved' || ticket.status === 'closed') ? 0.7 : 1 }}>
+                      {step}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleApplyResolution}
+                disabled={ticket.status === 'resolved' || ticket.status === 'closed'}
+                style={{
+                  width: '100%',
+                  marginTop: '6px',
+                  background: (ticket.status === 'resolved' || ticket.status === 'closed') ? '#E2E8F0' : '#8B5CF6',
+                  color: (ticket.status === 'resolved' || ticket.status === 'closed') ? '#94A3B8' : '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  cursor: (ticket.status === 'resolved' || ticket.status === 'closed') ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'background 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (ticket.status !== 'resolved' && ticket.status !== 'closed') {
+                    e.currentTarget.style.background = '#7C3AED';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (ticket.status !== 'resolved' && ticket.status !== 'closed') {
+                    e.currentTarget.style.background = '#8B5CF6';
+                  }
+                }}
+              >
+                <CheckCircle size={14} />
+                {(ticket.status === 'resolved' || ticket.status === 'closed') ? 'Resolution Applied' : 'Apply Resolution'}
+              </button>
             </div>
           )}
 

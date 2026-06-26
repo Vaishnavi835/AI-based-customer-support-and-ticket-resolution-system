@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import CustomCaptcha from "../components/CustomCaptcha";
 import { Eye, EyeOff, Sparkles } from "lucide-react";
+import { useToast } from "../context/ToastContext";
 
 /**
  * AIWorkflowVisualizer
@@ -208,6 +209,7 @@ export default function Login() {
 
   const { login }  = useAuth();
   const navigate   = useNavigate();
+  const toast      = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -215,12 +217,14 @@ export default function Login() {
 
     if (!captchaOk) {
       setError("Please complete the human verification puzzle.");
+      toast.warning("Please complete the human verification puzzle.");
       return;
     }
 
     setLoading(true);
     try {
       const user = await login(email, password);
+      toast.success(`Welcome back, ${user.name || 'User'}!`);
       if (user.role === "admin" || user.role === "support_agent") {
         navigate("/dashboard");
       } else {
@@ -229,6 +233,7 @@ export default function Login() {
     } catch (err) {
       const msg = err.response?.data?.detail || "Login failed. Check your credentials.";
       setError(msg);
+      toast.error(msg);
       setCaptchaOk(false);
     } finally {
       setLoading(false);

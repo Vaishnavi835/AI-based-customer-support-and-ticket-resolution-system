@@ -3,14 +3,16 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, Users, BookOpen, BarChart3,
   Settings, ShieldAlert, PlusCircle,
-  Home, Inbox, Clock, CheckCircle, Tag, AtSign
+  Home, Inbox, Clock, CheckCircle, Tag, AtSign, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocketEvent } from '../context/WebSocketContext';
+import { useToast } from '../context/ToastContext';
 import { ticketsAPI } from '../api/services';
 
 export default function Sidebar({ collapsed }) {
   const { user, logout } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -62,6 +64,8 @@ export default function Sidebar({ collapsed }) {
         { icon: Home, to: '/my-tickets', label: 'Home' },
         { icon: PlusCircle, to: '/my-tickets/new', label: 'New Ticket' },
         { icon: Clock, to: '/my-tickets/history', label: 'History' },
+        { icon: BarChart3, to: '/my-tickets/analytics', label: 'Analytics' },
+        { icon: Sparkles, to: '/my-tickets/ai-suggestions', label: 'AI Copilot' },
       ]
     : isAgent
     ? [
@@ -99,7 +103,7 @@ export default function Sidebar({ collapsed }) {
 
         {/* Bottom: settings + avatar */}
         <div className="zd-rail__bottom">
-          <NavLink to="/settings" className="zd-rail__link" title="Settings">
+          <NavLink to="/profile" className="zd-rail__link" title="Settings">
             <Settings size={20} />
             <span className="zd-rail__label">Settings</span>
           </NavLink>
@@ -107,8 +111,20 @@ export default function Sidebar({ collapsed }) {
             className="zd-rail__avatar"
             onClick={() => setShowUserMenu(!showUserMenu)}
             title={user?.name}
+            style={{
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: user?.avatar ? 'transparent' : undefined
+            }}
           >
-            {user?.name?.[0]?.toUpperCase() || 'U'}
+            {user?.avatar ? (
+              <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              user?.name?.[0]?.toUpperCase() || 'U'
+            )}
           </button>
         </div>
       </div>
@@ -119,7 +135,19 @@ export default function Sidebar({ collapsed }) {
           <div className="zd-user-overlay" onClick={() => setShowUserMenu(false)} />
           <div className="zd-user-menu">
             <div className="zd-user-menu__header">
-              <div className="zd-user-menu__avatar">{user?.name?.[0]?.toUpperCase()}</div>
+              <div className="zd-user-menu__avatar" style={{
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: user?.avatar ? 'transparent' : undefined
+              }}>
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  user?.name?.[0]?.toUpperCase()
+                )}
+              </div>
               <div>
                 <div className="zd-user-menu__name">{user?.name}</div>
                 <div className="zd-user-menu__role">{user?.role?.replace('_', ' ')}</div>
@@ -134,7 +162,7 @@ export default function Sidebar({ collapsed }) {
             <div className="zd-user-menu__divider" />
             <button className="zd-user-menu__item" onClick={() => { navigate('/profile'); setShowUserMenu(false); }}>Manage profile</button>
             <div className="zd-user-menu__divider" />
-            <button className="zd-user-menu__signout" onClick={() => { logout(); setShowUserMenu(false); }}>
+            <button className="zd-user-menu__signout" onClick={() => { logout(); toast.success("Successfully logged out"); setShowUserMenu(false); }}>
               Sign out
             </button>
           </div>

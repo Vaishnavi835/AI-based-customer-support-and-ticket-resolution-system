@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Search, UserPlus, Shield, UserCheck, User, Mail, Trash2, Building2 } from "lucide-react";
-import { usersAPI } from "../api/services";
+import { usersAPI, authAPI } from "../api/services";
+import { SkeletonTableRow } from "../components/SkeletonCard";
 
 const ROLE_CONFIG = {
   admin:         { label: "Admin",         color: "#7C3AED", bg: "#F5F3FF", icon: Shield },
@@ -60,6 +61,11 @@ export default function UserManagement() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [deptSaving, setDeptSaving] = useState({});  // { userId: true/false }
+  
+  // Invite Modal State
+  const [isInviting, setIsInviting] = useState(false);
+  const [inviteData, setInviteData] = useState({ name: "", email: "", password: "", role: "customer", department: "" });
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -108,6 +114,33 @@ export default function UserManagement() {
       setUsers(prev => prev.filter(u => u.id !== userId));
     } catch (err) {
       alert("Failed to delete user: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleInviteSubmit = async (e) => {
+    e.preventDefault();
+    setInviting(true);
+    try {
+      // Create user
+      const { data } = await authAPI.register(inviteData.name, inviteData.email, inviteData.password, inviteData.role);
+      
+      // If agent and dept selected, set dept
+      if ((inviteData.role === 'support_agent' || inviteData.role === 'admin') && inviteData.department) {
+        await usersAPI.setDepartment(data.user_id, inviteData.department);
+      }
+      
+      alert("User successfully invited!");
+      setIsInviting(false);
+      setInviteData({ name: "", email: "", password: "", role: "customer", department: "" });
+      
+      // Refresh list
+      const res = await usersAPI.list();
+      const usersWithStatus = res.data.map(u => ({ ...u, status: "offline", created_at: u.created_at ? u.created_at.split("T")[0] : "N/A" }));
+      setUsers(usersWithStatus);
+    } catch (err) {
+      alert("Failed to invite user: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setInviting(false);
     }
   };
 
@@ -161,11 +194,67 @@ export default function UserManagement() {
             <div style={{ fontSize: '22px', fontWeight: '800' }}>{deptCoverage} / 6</div>
             <div style={{ fontSize: '12px', opacity: 0.75 }}>Departments covered</div>
           </div>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', color: '#4F46E5', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          <button 
+            onClick={() => setIsInviting(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', color: '#4F46E5', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
             <UserPlus size={16} /> Invite User
           </button>
         </div>
       </div>
+
+      {/* ── Invite User Modal ─────────────────────────────── */}
+      {isInviting && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: '#fff', padding: '36px', borderRadius: '16px', width: '100%', maxWidth: '580px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <h3 style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', marginBottom: '8px' }}>Invite New User</h3>
+            <p style={{ fontSize: '14px', color: '#64748B', marginBottom: '24px' }}>Create an account for a new team member or customer.</p>
+            
+            <form onSubmit={handleInviteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>Full Name</label>
+                <input required value={inviteData.name} onChange={e => setInviteData({...inviteData, name: e.target.value})} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '14px' }} placeholder="Jane Doe" />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>Email Address</label>
+                <input required type="email" value={inviteData.email} onChange={e => setInviteData({...inviteData, email: e.target.value})} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '14px' }} placeholder="jane@company.com" />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>Temporary Password</label>
+                <input required type="text" value={inviteData.password} onChange={e => setInviteData({...inviteData, password: e.target.value})} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '14px' }} placeholder="Password123!" />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>Role</label>
+                  <select value={inviteData.role} onChange={e => setInviteData({...inviteData, role: e.target.value})} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '14px', background: '#fff' }}>
+                    <option value="customer">Customer</option>
+                    <option value="support_agent">Support Agent</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                {(inviteData.role === 'support_agent' || inviteData.role === 'admin') && (
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>Department</label>
+                    <select value={inviteData.department} onChange={e => setInviteData({...inviteData, department: e.target.value})} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '14px', background: '#fff' }}>
+                      <option value="">None (Optional)</option>
+                      {DEPARTMENT_CHOICES.map(d => <option key={d} value={d}>{DEPARTMENT_CONFIG[d]?.label}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+                <button type="button" onClick={() => setIsInviting(false)} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#F1F5F9', color: '#475569', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" disabled={inviting} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#4F46E5', color: '#fff', fontWeight: '600', cursor: inviting ? 'not-allowed' : 'pointer' }}>
+                  {inviting ? "Inviting..." : "Send Invite"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Summary Tiles ───────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
@@ -260,7 +349,9 @@ export default function UserManagement() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>Loading users...</td></tr>
+                [1, 2, 3, 4, 5].map(i => (
+                  <SkeletonTableRow key={i} cols={7} />
+                ))
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#9CA3AF' }}>No users found.</td></tr>
               ) : filtered.map(u => (

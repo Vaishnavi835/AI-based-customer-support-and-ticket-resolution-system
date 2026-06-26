@@ -37,6 +37,15 @@ export const authAPI = {
 
   /** Get the currently logged-in user's profile. */
   me: () => api.get("/auth/me"),
+
+  /** Logout — revoke token on the backend. */
+  logout: () => api.post("/auth/logout"),
+
+  /** Get list of active logged-in device sessions. */
+  getSessions: () => api.get("/auth/sessions"),
+
+  /** Terminate all other device sessions. */
+  logoutOthers: () => api.post("/auth/sessions/logout-others"),
 };
 
 // ── Tickets ───────────────────────────────────────────────────────────────────
@@ -119,8 +128,8 @@ export const chatAPI = {
   /** Get all chat sessions for a ticket. */
   getHistory: (ticketId) => api.get(`/chat/${ticketId}`),
 
-  /** List all chat sessions (admin/agent only). */
-  listAll: () => api.get("/chat/"),
+  /** List all chat sessions (admin/agent only). Supports pagination. */
+  listAll: (page = 1, limit = 20) => api.get("/chat/all", { params: { page, limit } }),
 
   /** Close a chat session. */
   close: (chatId) => api.patch(`/chat/${chatId}/close`),
