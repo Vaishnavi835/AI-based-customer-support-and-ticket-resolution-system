@@ -15,6 +15,7 @@ Day 20 additions:
 """
 
 import os
+import asyncio
 import logging
 import numpy as np
 from typing import Optional
@@ -35,6 +36,9 @@ doc_store       = [
     for d in KNOWLEDGE_BASE
 ]     # list of docs in the same order as FAISS index
 embedding_model = None   # SentenceTransformer model
+
+# Fix #2: asyncio lock to prevent concurrent FAISS access during reindex
+_rag_lock = asyncio.Lock()
 
 
 # ── 1. initialize_rag ─────────────────────────────────────────────────────────
@@ -129,55 +133,57 @@ async def reindex_rag():
     """
     global faiss_index, doc_store
 
-    if embedding_model is None:
-        logger.warning("RAG: Cannot reindex — embedding model not loaded yet")
-        return
+    # Fix #2: acquire lock so concurrent searches wait during reindex
+    async with _rag_lock:
+        if embedding_model is None:
+            logger.warning("RAG: Cannot reindex — embedding model not loaded yet")
+            return
 
-    try:
-        # pyrefly: ignore [missing-import]
-        import faiss
-        docs = []
         try:
-            from app.database.connection import get_db
-            db_inst = get_db()
-            if db_inst and db_inst.knowledge_col is not None:
-                db_docs = await db_inst.knowledge_col.find({}).to_list(1000)
+            # pyrefly: ignore [missing-import]
+            import faiss
+            docs = []
+            try:
+                from app.database.connection import get_db
+                db_inst = get_db()
+                if db_inst and db_inst.knowledge_col is not None:
+                    db_docs = await db_inst.knowledge_col.find({}).to_list(1000)
+                    docs = [
+                        {
+                            "id":       d["_id"],
+                            "title":    d["title"],
+                            "category": d["category"],
+                            "content":  d["content"],
+                        }
+                        for d in db_docs
+                    ]
+            except Exception as db_err:
+                logger.warning(f"RAG: MongoDB query failed during reindex ({db_err}) — using static KNOWLEDGE_BASE fallback")
+
+            if not docs:
+                from app.knowledge.sample_docs import KNOWLEDGE_BASE
                 docs = [
                     {
-                        "id":       d["_id"],
+                        "id":       d["id"],
                         "title":    d["title"],
                         "category": d["category"],
                         "content":  d["content"],
                     }
-                    for d in db_docs
+                    for d in KNOWLEDGE_BASE
                 ]
-        except Exception as db_err:
-            logger.warning(f"RAG: MongoDB query failed during reindex ({db_err}) — using static KNOWLEDGE_BASE fallback")
 
-        if not docs:
-            from app.knowledge.sample_docs import KNOWLEDGE_BASE
-            docs = [
-                {
-                    "id":       d["id"],
-                    "title":    d["title"],
-                    "category": d["category"],
-                    "content":  d["content"],
-                }
-                for d in KNOWLEDGE_BASE
-            ]
+            doc_store = docs
+            texts      = [doc["content"] for doc in doc_store]
+            embeddings = embedding_model.encode(texts, convert_to_numpy=True).astype(np.float32)
 
-        doc_store = docs
-        texts      = [doc["content"] for doc in doc_store]
-        embeddings = embedding_model.encode(texts, convert_to_numpy=True).astype(np.float32)
+            dimension   = embeddings.shape[1]
+            faiss_index = faiss.IndexFlatL2(dimension)
+            faiss_index.add(embeddings)
 
-        dimension   = embeddings.shape[1]
-        faiss_index = faiss.IndexFlatL2(dimension)
-        faiss_index.add(embeddings)
+            logger.info(f"RAG: Reindexed successfully — {faiss_index.ntotal} documents")
 
-        logger.info(f"RAG: Reindexed successfully — {faiss_index.ntotal} documents")
-
-    except Exception as e:
-        logger.error(f"RAG: Reindex failed: {e}")
+        except Exception as e:
+            logger.error(f"RAG: Reindex failed: {e}")
 
 
 # ── 3. search_knowledge_base ──────────────────────────────────────────────────
@@ -185,7 +191,7 @@ async def reindex_rag():
 async def search_knowledge_base(
     query:     str,
     top_k:     int   = 3,
-    threshold: float = 2.0,     # Day 19: NEW param
+    threshold: float = 1.3,     # Day 19: NEW param
 ) -> list:
     """
     Convert the query to an embedding and find the top_k most semantically
@@ -212,40 +218,42 @@ async def search_knowledge_base(
     if not query.strip():
         return []
 
-    try:
-        query_embedding = embedding_model.encode(
-            [query],
-            convert_to_numpy=True,
-        ).astype(np.float32)
+    # Fix #2: acquire lock so searches don't run during reindex
+    async with _rag_lock:
+        try:
+            query_embedding = embedding_model.encode(
+                [query],
+                convert_to_numpy=True,
+            ).astype(np.float32)
 
-        actual_k = min(top_k, faiss_index.ntotal)
-        D, I     = faiss_index.search(query_embedding, actual_k)
+            actual_k = min(top_k, faiss_index.ntotal)
+            D, I     = faiss_index.search(query_embedding, actual_k)
 
-        results = []
-        for idx, distance in zip(I[0], D[0]):
-            if idx == -1:
-                continue
-            # Day 19: filter out low-relevance results
-            if distance > threshold:
-                logger.debug(
-                    f"RAG: Skipping doc '{doc_store[idx]['title']}' "
-                    f"(distance {distance:.2f} > threshold {threshold})"
-                )
-                continue
-            doc = doc_store[idx].copy()
-            doc["relevance_score"] = float(distance)
-            results.append(doc)
+            results = []
+            for idx, distance in zip(I[0], D[0]):
+                if idx == -1:
+                    continue
+                # Day 19: filter out low-relevance results
+                if distance > threshold:
+                    logger.debug(
+                        f"RAG: Skipping doc '{doc_store[idx]['title']}' "
+                        f"(distance {distance:.2f} > threshold {threshold})"
+                    )
+                    continue
+                doc = doc_store[idx].copy()
+                doc["relevance_score"] = float(distance)
+                results.append(doc)
 
-        logger.info(
-            f"RAG: '{query[:50]}' → "
-            f"{len(results)} results within threshold "
-            f"(best: {D[0][0]:.3f})"
-        )
-        return results
+            logger.info(
+                f"RAG: '{query[:50]}' → "
+                f"{len(results)} results within threshold "
+                f"(best: {D[0][0]:.3f})"
+            )
+            return results
 
-    except Exception as e:
-        logger.error(f"RAG: Search failed: {e}")
-        return []
+        except Exception as e:
+            logger.error(f"RAG: Search failed: {e}")
+            return []
 
 
 # ── 4. generate_rag_response ──────────────────────────────────────────────────
@@ -274,9 +282,13 @@ async def generate_rag_response(
     )
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            ),
         )
         return response.text, relevant_docs
 

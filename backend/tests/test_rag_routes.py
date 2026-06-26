@@ -225,7 +225,7 @@ def test_ask_returns_answer_and_sources():
     try:
         with patch("app.routes.rag.is_rag_ready", return_value=True), \
              patch("app.routes.rag.search_knowledge_base", new=AsyncMock(return_value=mock_docs)), \
-             patch("app.routes.rag.generate_rag_response", new=AsyncMock(return_value="Click forgot password on the login page.")):
+             patch("app.routes.rag.generate_rag_response", new=AsyncMock(return_value=("Click forgot password on the login page.", mock_docs))):
             response = client.post("/rag/ask", json={"question": "how do I reset my password"})
             assert response.status_code == 200
             data = response.json()
@@ -257,7 +257,7 @@ def test_chat_response_includes_rag_used_flag():
         with patch("app.routes.chat.get_db", return_value=mock_db), \
              patch("app.routes.chat.is_rag_ready", return_value=True), \
              patch("app.routes.chat.generate_rag_response",
-                   new=AsyncMock(return_value="Based on our policy, refunds take 5-7 days.")):
+                   new=AsyncMock(return_value=("Based on our policy, refunds take 5-7 days.", []))):
             response = client.post("/chat/", json={
                 "ticket_id": "ticket_abc",
                 "message":   "How long does a refund take?"

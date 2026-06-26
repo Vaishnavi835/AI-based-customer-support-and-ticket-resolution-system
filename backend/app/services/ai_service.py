@@ -1,11 +1,23 @@
 import os
 import json
+import asyncio
+import logging
 from dotenv import load_dotenv
 from google import genai
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+logger = logging.getLogger(__name__)
+
+# ── Fix #5: Validate GEMINI_API_KEY at startup ────────────────────────────────
+_gemini_api_key = os.getenv("GEMINI_API_KEY")
+if not _gemini_api_key:
+    raise RuntimeError(
+        "GEMINI_API_KEY environment variable is not set. "
+        "Please set it in your .env file or environment before starting the server."
+    )
+
+client = genai.Client(api_key=_gemini_api_key)
 
 SYSTEM_PROMPT = """
 You are a helpful customer support assistant.
@@ -15,11 +27,17 @@ Once you have enough details, provide clear, concise, and professional responses
 """
 
 
+# ── Fix #1: All Gemini calls wrapped in run_in_executor ───────────────────────
+
 async def generate_ai_response(user_message: str) -> str:
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=f"{SYSTEM_PROMPT}\n\nUser: {user_message}",
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=f"{SYSTEM_PROMPT}\n\nUser: {user_message}",
+            ),
         )
         return response.text
     except Exception as e:
@@ -47,9 +65,13 @@ Status: {ticket_context.get("status", "")}
         for msg in conversation_history:
             prompt += f"{msg['role']}: {msg['content']}\n"
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            ),
         )
 
         return response.text
@@ -67,9 +89,13 @@ async def summarize_conversation(
         for msg in conversation_history:
             prompt += f"{msg['role']}: {msg['content']}\n"
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            ),
         )
 
         return response.text
@@ -138,9 +164,13 @@ Return:
 }}
 """
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            ),
         )
 
         clean_text = (

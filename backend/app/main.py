@@ -11,6 +11,9 @@ from app.routes.rag import router as rag_router
 from app.services.kb_service import seed_knowledge_base 
 from app.routes.websocket import router as websocket_router
 from app.routes.notifications import router as notifications_router 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from app.utils.rate_limiter import limiter
 
 import logging
 
@@ -52,6 +55,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Fix #6: Register rate limiter with the app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError

@@ -21,6 +21,7 @@ from app.services.websocket_manager import manager
 from app.services.notification_service import create_notification, notify_agents_and_admins
 
 import uuid
+import re
 import logging
 
 logger = logging.getLogger(__name__)
@@ -478,10 +479,12 @@ async def search_tickets(
     query = {}
 
     # --- 1. Keyword search in title and description ---
+    # Fix #3: Escape user input to prevent ReDoS via MongoDB regex
     if search:
+        safe_search = re.escape(search)
         query["$or"] = [
-            {"title":       {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}},
+            {"title":       {"$regex": safe_search, "$options": "i"}},
+            {"description": {"$regex": safe_search, "$options": "i"}},
         ]
 
     # --- 2. Search by customer email (cross-collection lookup) ---

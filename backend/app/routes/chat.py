@@ -93,7 +93,10 @@ async def start_chat(
     try:
         ai_response, sources = await get_ai_response(
             message=data.message,
-            conversation_history=[{"role": "user", "content": data.message}],
+            # Fix #11: Pass empty history for new chat — _build_rag_prompt
+            # already adds data.message as "Customer question:" so we don't
+            # duplicate it by also putting it in conversation_history.
+            conversation_history=[],
             ticket_context=ticket,
         )
     except Exception as e:
@@ -333,18 +336,32 @@ async def add_message(
         }
 
 
-# ── List all chats ────────────────────────────────────────────────────────────
+# ── List all chats ────────────────────────────────────────────────────────────────────
+# Fix #12: Changed from "/" to "/all" to avoid path collision with "/{ticket_id}"
 
-@router.get("/")
+@router.get("/all")
 async def list_all_chats(
+    page: int = 1,
+    limit: int = 20,
     current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
 ):
-    """Only Admin and Support Agent can list all chats."""
+    """
+    Only Admin and Support Agent can list all chats.
+    Fix #10: Supports pagination instead of hard-capping at 100.
+    """
     col   = get_db().chat_col
-    chats = await col.find({}).to_list(100)
+    skip  = (page - 1) * limit
+    total = await col.count_documents({})
+    chats = await col.find({}).skip(skip).limit(limit).to_list(limit)
     for c in chats:
         c["id"] = c.pop("_id")
-    return chats
+    return {
+        "chats":       chats,
+        "total":       total,
+        "page":        page,
+        "limit":       limit,
+        "total_pages": (total + limit - 1) // limit,
+    }
 
 
 # ── Get chat history for a ticket ────────────────────────────────────────────
