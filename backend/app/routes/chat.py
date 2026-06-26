@@ -28,6 +28,7 @@ from app.services.escalation_service import (
     create_escalation,
     handle_ai_failure,
 )
+from app.schemas.escalation import EscalationReason
 from datetime import datetime, timezone
 import uuid
 from app.services.websocket_manager import manager
@@ -89,38 +90,46 @@ async def start_chat(
             detail="Access denied. You can only chat on your own tickets."
         )
 
+    is_incident = ticket.get("status") == "escalated" or ticket.get("incident_type") == "incident"
     escalated_on_start = False
-    try:
-        ai_response, sources = await get_ai_response(
-            message=data.message,
-            # Fix #11: Pass empty history for new chat — _build_rag_prompt
-            # already adds data.message as "Customer question:" so we don't
-            # duplicate it by also putting it in conversation_history.
-            conversation_history=[],
-            ticket_context=ticket,
-        )
-    except Exception as e:
-        ai_response = (
-            "I'm having trouble processing your request right now. "
-            "A support agent has been notified and will assist you shortly."
-        )
-        sources = []
-        escalated_on_start = str(e)
+    ai_response = ""
+    sources = []
+
+    if is_incident:
+        ai_response = "An incident report has been flagged. A support agent has been notified and will join shortly."
+        escalated_on_start = "Incident Report Auto-Escalation"
+    else:
+        try:
+            ai_response, sources = await get_ai_response(
+                message=data.message,
+                # Fix #11: Pass empty history for new chat — _build_rag_prompt
+                # already adds data.message as "Customer question:" so we don't
+                # duplicate it by also putting it in conversation_history.
+                conversation_history=[],
+                ticket_context=ticket,
+            )
+        except Exception as e:
+            ai_response = (
+                "I'm having trouble processing your request right now. "
+                "A support agent has been notified and will assist you shortly."
+            )
+            sources = []
+            escalated_on_start = str(e)
 
     doc = {
         "_id":        str(uuid.uuid4()),
         "ticket_id":  data.ticket_id,
         "user_id":    current_user["id"],
         "status":     "active",
-        "escalated":  False,
+        "escalated":  True if is_incident else False,
         "agent_id":   None,
-        "rag_enabled": is_rag_ready(),
+        "rag_enabled": False if is_incident else is_rag_ready(),
         "messages": [
             {
                 "prompt":    data.message,
                 "response":  ai_response,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "rag_used":  is_rag_ready(),
+                "rag_used":  False if is_incident else is_rag_ready(),
                 "sources":   sources,
             }
         ],
@@ -130,11 +139,24 @@ async def start_chat(
     await db.chat_col.insert_one(doc)
 
     if escalated_on_start:
-        await handle_ai_failure(
-            chat_id=doc["_id"],
-            ticket_id=data.ticket_id,
-            error_msg=escalated_on_start,
-        )
+        if is_incident:
+            try:
+                await create_escalation(
+                    chat_id=doc["_id"],
+                    ticket_id=data.ticket_id,
+                    reason=EscalationReason.incident,
+                    triggered_by="system",
+                    note="Incident report created by customer",
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to create escalation for incident: {e}")
+        else:
+            await handle_ai_failure(
+                chat_id=doc["_id"],
+                ticket_id=data.ticket_id,
+                error_msg=escalated_on_start,
+            )
 
     await notify_chat_updated(doc["_id"], data.ticket_id, current_user["id"])
 
@@ -142,8 +164,8 @@ async def start_chat(
         "message":    "Chat started",
         "id":         doc["_id"],
         "ai_response": ai_response,
-        "rag_used":   is_rag_ready(),
-        "escalated":  bool(escalated_on_start),
+        "rag_used":   False if is_incident else is_rag_ready(),
+        "escalated":  True if is_incident else bool(escalated_on_start),
     }
 
 
@@ -425,12 +447,26 @@ async def get_chat_summary(
     chat_id:      str,
     current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
 ):
-    """Generate AI summary of the full conversation. Admin/Agent only."""
-    col  = get_db().chat_col
-    chat = await col.find_one({"_id": chat_id})
+    """Generate AI summary of ticket details + full conversation. Admin/Agent only."""
+    db  = get_db()
+    chat = await db.chat_col.find_one({"_id": chat_id})
     if not chat:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
+    # Fetch linked ticket for full context
+    ticket = await db.tickets_col.find_one({"_id": chat["ticket_id"]})
+    ticket_context = None
+    if ticket:
+        ticket_context = {
+            "title":       ticket.get("title", ""),
+            "description": ticket.get("description", ""),
+            "category":    ticket.get("category", ""),
+            "priority":    ticket.get("priority", ""),
+            "status":      ticket.get("status", ""),
+            "user_name":   ticket.get("user_name", "Customer"),
+        }
+
+    # Build chat history
     history = []
     for m in chat.get("messages", []):
         if m.get("prompt"):
@@ -438,7 +474,8 @@ async def get_chat_summary(
         if m.get("response"):
             role_type = "agent" if m.get("agent_id") else "assistant"
             history.append({"role": role_type, "content": m.get("response")})
-    summary = await summarize_conversation(history)
+
+    summary = await summarize_conversation(history, ticket_context=ticket_context)
 
     return {
         "chat_id":        chat_id,

@@ -82,12 +82,38 @@ Status: {ticket_context.get("status", "")}
 
 async def summarize_conversation(
     conversation_history: list,
+    ticket_context: dict = None,
 ) -> str:
     try:
-        prompt = "Summarize this support conversation:\n\n"
+        # Build ticket context block if provided
+        context_block = ""
+        if ticket_context:
+            context_block = (
+                f"=== TICKET DETAILS ===\n"
+                f"Title      : {ticket_context.get('title', 'N/A')}\n"
+                f"Description: {ticket_context.get('description', 'N/A')}\n"
+                f"Category   : {ticket_context.get('category', 'N/A')}\n"
+                f"Priority   : {ticket_context.get('priority', 'N/A')}\n"
+                f"Status     : {ticket_context.get('status', 'N/A')}\n"
+                f"Submitted by: {ticket_context.get('user_name', 'Customer')}\n\n"
+            )
 
+        # Build conversation block
+        convo_block = "=== CONVERSATION HISTORY ===\n"
         for msg in conversation_history:
-            prompt += f"{msg['role']}: {msg['content']}\n"
+            role = msg['role'].capitalize()
+            convo_block += f"{role}: {msg['content']}\n"
+
+        prompt = (
+            "You are a support ticket analyst. A human support agent needs a concise briefing "
+            "before handling this ticket. Based on the ticket details and conversation history below, "
+            "provide a structured summary covering:\n"
+            "1. What the customer's issue is\n"
+            "2. What has already been tried or discussed\n"
+            "3. Current status and recommended next action for the agent\n\n"
+            + context_block
+            + convo_block
+        )
 
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
@@ -106,11 +132,16 @@ async def summarize_conversation(
 async def classify_ticket(
     title: str,
     description: str,
+    incident_type: str = "ticket",
 ) -> dict:
     try:
+        note_prompt = ""
+        if incident_type == "incident":
+            note_prompt = "\nNote: The user classified this request as an Incident Report. Urgent service disruption is implied.\n"
+
         prompt = f"""
 You are a support ticket classifier.
-
+{note_prompt}
 Analyze the ticket and return ONLY valid JSON.
 
 Allowed categories:

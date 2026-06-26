@@ -11,6 +11,7 @@ class EscalationReason(str, Enum):
     high_risk_score  = "high_risk_score"   # AI escalation_risk = "high"
     ai_failure       = "ai_failure"        # Gemini threw an error
     manual           = "manual"            # agent/admin triggered manually
+    incident         = "incident"          # customer flagged as incident report
 
 
 class EscalationStatus(str, Enum):

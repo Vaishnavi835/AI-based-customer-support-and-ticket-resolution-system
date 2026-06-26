@@ -54,9 +54,12 @@ VALID_TRANSITIONS = {
 
     Status.resolved: [
         Status.closed,
+        Status.open,  # Allow reopening
     ],
 
-    Status.closed: [],
+    Status.closed: [
+        Status.open,  # Allow reopening
+    ],
 }
 
 
@@ -74,6 +77,9 @@ def is_valid_transition(current: str, new: str) -> bool:
 class TicketCreate(BaseModel):
     title:       str = Field(..., min_length=3, max_length=200)
     description: str = Field(..., min_length=10)
+    incident_type: Optional[str] = "ticket"
+    contact_info: Optional[str] = None
+    attachments: Optional[List[str]] = []
 
     model_config = {
         "extra": "forbid"
@@ -83,6 +89,7 @@ class TicketCreate(BaseModel):
 class TicketUpdate(BaseModel):
     status:   Optional[Status]   = None
     priority: Optional[Priority] = None
+    rating:   Optional[int]      = None
 
 
 class TicketAssign(BaseModel):
@@ -110,6 +117,9 @@ class TicketResponse(BaseModel):
     id:          str
     title:       str
     description: str
+    incident_type: Optional[str] = "ticket"
+    contact_info: Optional[str] = None
+    attachments: Optional[List[str]] = []
     priority:    str
     category: Optional[str] = None
     urgency: Optional[str] = None
