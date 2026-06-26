@@ -9,7 +9,7 @@ import {
   Clock, Settings, FileText, Inbox, MailOpen,
   Search, Sparkles, Zap, BookOpen,
   TrendingUp, TrendingDown, CreditCard, Cpu, User,
-  BarChart3, RefreshCw
+  BarChart3, RefreshCw, ArrowLeft
 } from "lucide-react";
 import { SkeletonCard } from "../components/SkeletonCard";
 import {
@@ -109,6 +109,84 @@ const getAIRecommendationText = (ticket) => {
   return "Query Knowledge Base rules for relevant troubleshooting guides.";
 };
 
+/* ── Article Content Dataset ────────────────────────────────────── */
+const ARTICLE_DETAILS = {
+  "billing-faq": {
+    title: "Billing & Payment FAQ",
+    category: "Billing",
+    lastUpdated: "June 15, 2026",
+    content: (
+      <>
+        <h3>Refund Policy Guidelines</h3>
+        <p>Customers are eligible for a full refund within 30 days of purchase. To request a refund, contact support with your order ID. Refunds are processed within 5-7 business days to the original payment method. After 30 days, only store credit is available.</p>
+        
+        <h3>Handling Duplicate Charges</h3>
+        <p>If you were charged twice for the same order, this is usually caused by a payment gateway timeout. The duplicate charge is automatically reversed within 3-5 business days. If it persists after 5 days, contact support with both transaction IDs and we will escalate to the billing team immediately.</p>
+        
+        <h3>Updating Payment Methods</h3>
+        <p>To update your payment method, navigate to Account Settings and select 'Payment Options'. We support all major credit cards, Apple Pay, and Google Pay. Make sure your card CVV and billing ZIP code are entered correctly to avoid auto-renewal disruptions.</p>
+      </>
+    )
+  },
+  "api-guide": {
+    title: "API Connection Guide",
+    category: "Technical",
+    lastUpdated: "June 20, 2026",
+    content: (
+      <>
+        <h3>Authentication Header Structure</h3>
+        <p>All REST API requests must include a Bearer authentication token in the Authorization header. Ensure your request header has the format:</p>
+        <pre style={{ background: '#F1F5F9', padding: '14px', borderRadius: '8px', fontSize: '13px', overflowX: 'auto', fontFamily: 'monospace', color: '#1E293B', border: '1px solid #E2E8F0' }}>
+          Authorization: Bearer YOUR_API_KEY
+        </pre>
+        
+        <h3>Setting up Webhooks</h3>
+        <p>Webhooks can be configured via the developer dashboard to receive real-time updates on ticket actions. When a webhook is fired, its payload will contain the action type and relevant ticket schema. All incoming webhook payloads should be verified using the signature secret to ensure request integrity.</p>
+
+        <h3>App Loading Issues</h3>
+        <p>If the developer portal or app is not loading properly, please try clearing cache/cookies, disabling active browser extensions, or checking our system status page. If persistent, reach out to the support team with your browser version and OS details.</p>
+      </>
+    )
+  },
+  "reset-credentials": {
+    title: "How to Reset Account Credentials",
+    category: "Account",
+    lastUpdated: "June 18, 2026",
+    content: (
+      <>
+        <h3>Forgot Password Workflow</h3>
+        <p>To reset your password, click the 'Forgot Password' link on the login page. Enter your registered email address, and a secure reset link will be sent to your inbox within 5 minutes. Remember to check your spam/junk folder if it doesn't appear. The reset link expires in 1 hour.</p>
+        
+        <h3>Account Temporary Lockouts</h3>
+        <p>Accounts are temporarily locked after 5 failed login attempts for security purposes. The lockout lasts 15 minutes and lifts automatically. If you suspect unauthorized access attempts, contact support immediately to secure your account.</p>
+
+        <h3>Updating Account Email</h3>
+        <p>To update your email address, log in and navigate to Profile &rarr; Account Settings. Click 'Change Email', enter your new email address, and verify it using the confirmation link sent to the new address. Your old email remains active until verification is complete.</p>
+      </>
+    )
+  },
+  "sla-policy": {
+    title: "General Support SLA Policy",
+    category: "General",
+    lastUpdated: "June 22, 2026",
+    content: (
+      <>
+        <h3>SLA Target Response Times</h3>
+        <p>Our support team works round the clock to ensure all requests are handled in a timely manner. Our service level agreement target response times are structured by ticket priority:</p>
+        <ul>
+          <li><strong>Critical:</strong> Under 15 minutes response / 4 hours resolution.</li>
+          <li><strong>High:</strong> Under 1 hour response / 12 hours resolution.</li>
+          <li><strong>Medium:</strong> Under 4 hours response / 24 hours resolution.</li>
+          <li><strong>Low:</strong> Under 24 hours response / 48 hours resolution.</li>
+        </ul>
+
+        <h3>Escalation Thresholds</h3>
+        <p>If AI Autopilot cannot resolve a ticket within the initial triage window or if the customer requests human assistance, the ticket is instantly escalated to a dedicated support specialist. High priority and billing-dispute tickets are auto-routed directly to specialized agents.</p>
+      </>
+    )
+  }
+};
+
 export default function MyTickets() {
   const { user } = useAuth();
   const toast = useToast();
@@ -122,13 +200,15 @@ export default function MyTickets() {
 
   /* Data */
   const [tickets, setTickets] = useState([]);
+    const [recentlyUpdated, setRecentlyUpdated] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
   /* Compute Active Tab based on URL */
   const activeTab = location.pathname.endsWith("/new") ? "create" :
     location.pathname.endsWith("/history") ? "history" :
       location.pathname.endsWith("/analytics") ? "analytics" :
-        location.pathname.endsWith("/ai-suggestions") ? "ai-suggestions" : "dashboard";
+        location.pathname.endsWith("/ai-suggestions") ? "ai-suggestions" :
+          location.pathname.includes("/my-tickets/article/") ? "article" : "dashboard";
 
   /* Status filter (history tab) */
   const [statusFilter, setStatusFilter] = useState("all");
@@ -146,6 +226,9 @@ export default function MyTickets() {
   /* Create form */
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [incidentType, setIncidentType] = useState("ticket");
+  const [contactInfo, setContactInfo] = useState("");
+  const [attachments, setAttachments] = useState([]);
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState("");
   const [formSuccess, setFormSuccess] = useState("");
@@ -191,6 +274,8 @@ export default function MyTickets() {
       setTickets((prev) =>
         prev.map((t) => (t.id === data.ticket.id ? data.ticket : t))
       );
+      setRecentlyUpdated((prev) => new Set([...prev, data.ticket.id]));
+      toast.info(`Ticket status updated: "${data.ticket.title}" is now ${data.ticket.status.toUpperCase()}`);
     }
   });
 
@@ -409,6 +494,24 @@ export default function MyTickets() {
   };
   const recentActivities = getRecentActivities();
 
+  /* Compute dominant category for analytics and insights */
+  const getDominantCategory = () => {
+    if (tickets.length === 0) return "General";
+    const categories = tickets.map(t => t.category || "General");
+    const counts = {};
+    let dominant = "General";
+    let max = 0;
+    categories.forEach(c => {
+      counts[c] = (counts[c] || 0) + 1;
+      if (counts[c] > max) {
+        max = counts[c];
+        dominant = c;
+      }
+    });
+    return dominant;
+  };
+  const dominantCat = getDominantCategory();
+
   /* Dynamic AI insights generator */
   const getAIInsights = () => {
     const insights = [];
@@ -421,13 +524,11 @@ export default function MyTickets() {
     }
     const categories = tickets.map(t => t.category || "General");
     const counts = {};
-    let dominantCat = "General";
     let maxCount = 0;
     categories.forEach(c => {
       counts[c] = (counts[c] || 0) + 1;
       if (counts[c] > maxCount) {
         maxCount = counts[c];
-        dominantCat = c;
       }
     });
     const pct = Math.round((maxCount / tickets.length) * 100);
@@ -451,14 +552,14 @@ export default function MyTickets() {
     const articles = [];
     const categories = tickets.map(t => (t.category || "").toLowerCase());
     if (categories.some(c => c.includes("bill") || c.includes("pay"))) {
-      articles.push({ title: "📖 Billing & Payment FAQ", link: "/knowledge-base" });
+      articles.push({ title: "📖 Billing & Payment FAQ", link: "/my-tickets/article/billing-faq" });
     }
     if (categories.some(c => c.includes("tech") || c.includes("api") || c.includes("bug"))) {
-      articles.push({ title: "📖 API Connection Guide", link: "/knowledge-base" });
+      articles.push({ title: "📖 API Connection Guide", link: "/my-tickets/article/api-guide" });
     }
-    articles.push({ title: "📖 How to reset account credentials", link: "/knowledge-base" });
+    articles.push({ title: "📖 How to reset account credentials", link: "/my-tickets/article/reset-credentials" });
     if (articles.length < 3) {
-      articles.push({ title: "📖 General Support SLA policy", link: "/knowledge-base" });
+      articles.push({ title: "📖 General Support SLA policy", link: "/my-tickets/article/sla-policy" });
     }
     return articles.slice(0, 3);
   };
@@ -558,10 +659,16 @@ export default function MyTickets() {
     e.preventDefault();
     setFormError(""); setFormSuccess(""); setCreating(true);
     try {
-      await ticketsAPI.create(title, description);
+      await ticketsAPI.create(
+        title, 
+        description, 
+        incidentType, 
+        incidentType === "incident" ? contactInfo.trim() : null, 
+        attachments
+      );
       setFormSuccess("Ticket submitted! Redirecting to history...");
       toast.success("Ticket submitted successfully!");
-      setTitle(""); setDescription("");
+      setTitle(""); setDescription(""); setIncidentType("ticket"); setContactInfo(""); setAttachments([]);
       loadTickets();
       setTimeout(() => { setFormSuccess(""); navigate("/my-tickets/history"); }, 1500);
     } catch (err) {
@@ -1166,26 +1273,58 @@ export default function MyTickets() {
                           </div>
 
                           {/* Colored Status Badges */}
-                          <span style={{
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '4px 10px',
-                            borderRadius: '99px',
-                            background: ticket.status === 'open' ? '#EFF6FF' : ticket.status === 'pending' ? '#FFFBEB' : ticket.status === 'escalated' ? '#FEF2F2' : '#F0FDF4',
-                            color: ticket.status === 'open' ? '#2563EB' : ticket.status === 'pending' ? '#D97706' : ticket.status === 'escalated' ? '#EF4444' : '#10B981',
-                          }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {ticket.incident_type === "incident" && (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '750',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#FEE2E2',
+                                color: '#EF4444',
+                                border: '1px solid #FCA5A5',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}>
+                                🚨 Incident
+                              </span>
+                            )}
+                            {recentlyUpdated.has(ticket.id) && (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: '#3B82F6',
+                                color: '#ffffff',
+                                boxShadow: '0 0 8px rgba(59, 130, 246, 0.4)',
+                                animation: 'pulse 2s infinite'
+                              }}>
+                                New Update
+                              </span>
+                            )}
                             <span style={{
-                              width: '6px',
-                              height: '6px',
-                              borderRadius: '50%',
-                              background: ticket.status === 'open' ? '#2563EB' : ticket.status === 'pending' ? '#D97706' : ticket.status === 'escalated' ? '#EF4444' : '#10B981',
-                              animation: (ticket.status !== 'resolved' && ticket.status !== 'closed') ? 'pulse 1.5s infinite ease-in-out' : 'none'
-                            }} />
-                            {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
-                          </span>
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '4px 10px',
+                              borderRadius: '99px',
+                              background: ticket.status === 'open' ? '#EFF6FF' : ticket.status === 'pending' ? '#FFFBEB' : ticket.status === 'escalated' ? '#FEF2F2' : '#F0FDF4',
+                              color: ticket.status === 'open' ? '#2563EB' : ticket.status === 'pending' ? '#D97706' : ticket.status === 'escalated' ? '#EF4444' : '#10B981',
+                            }}>
+                              <span style={{
+                                width: '6px',
+                                height: '6px',
+                                borderRadius: '50%',
+                                background: ticket.status === 'open' ? '#2563EB' : ticket.status === 'pending' ? '#D97706' : ticket.status === 'escalated' ? '#EF4444' : '#10B981',
+                                animation: (ticket.status !== 'resolved' && ticket.status !== 'closed') ? 'pulse 1.5s infinite ease-in-out' : 'none'
+                              }} />
+                              {ticket.status.charAt(0).toUpperCase() + ticket.status.slice(1)}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Description */}
@@ -1193,7 +1332,7 @@ export default function MyTickets() {
                           {ticket.description || "No description provided."}
                         </p>
 
-                        {/* Footer Row */}
+                                                {/* Footer Row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderTop: '1px solid #F1F5F9', paddingTop: '12px', fontSize: '12px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '11px', fontWeight: '700', padding: '3px 8px', borderRadius: '4px', textTransform: 'uppercase', ...prioStyle }}>
@@ -1203,6 +1342,12 @@ export default function MyTickets() {
                             <span style={{ background: '#F8FAFC', color: '#475569', padding: '3px 8px', borderRadius: '4px', fontWeight: '600', border: '1px solid #E2E8F0' }}>
                               {assignText}
                             </span>
+
+                            {ticket.ai_replied && (
+                              <span style={{ background: '#F3E8FF', color: '#7C3AED', border: '1px solid #D8B4FE', padding: '3px 8px', borderRadius: '4px', fontWeight: '700', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                ✨ AI Replied
+                              </span>
+                            )}
 
                             <span style={{ color: '#64748B', fontWeight: '500' }}>
                               {getLastUpdatedText(ticket)}
@@ -1367,6 +1512,70 @@ export default function MyTickets() {
               {formSuccess && <div className="alert alert-success">{formSuccess}</div>}
 
               <form onSubmit={handleCreate} className="cd-create-form" style={{ width: '100%', background: '#fff', padding: '40px', borderRadius: '16px', border: '1px solid #E2E8F0', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: '750', color: '#334155' }}>Request Type</label>
+                  <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: '10px', padding: '4px', gap: '4px', width: 'fit-content' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIncidentType("ticket")}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontSize: '13.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        background: incidentType === "ticket" ? '#ffffff' : 'transparent',
+                        color: incidentType === "ticket" ? '#0F172A' : '#64748B',
+                        boxShadow: incidentType === "ticket" ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      🎫 Support Request
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIncidentType("incident")}
+                      style={{
+                        padding: '10px 20px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontSize: '13.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        background: incidentType === "incident" ? '#FEE2E2' : 'transparent',
+                        color: incidentType === "incident" ? '#EF4444' : '#64748B',
+                        boxShadow: incidentType === "incident" ? '0 1px 3px rgba(239, 68, 68, 0.1)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      🚨 Incident Report
+                    </button>
+                  </div>
+                  {incidentType === "incident" && (
+                    <>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#EF4444', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>⚠️ Critical service disruption: Will auto-escalate directly to support specialists.</span>
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }} className="cd-fade-in">
+                        <label htmlFor="t-contact" style={{ fontSize: '14px', fontWeight: '600', color: '#334155', display: 'block' }}>Direct Contact Info</label>
+                        <input
+                          id="t-contact"
+                          type="text"
+                          value={contactInfo}
+                          onChange={e => setContactInfo(e.target.value)}
+                          placeholder="e.g., +1 (555) 0199 or Slack: @david"
+                          required={incidentType === "incident"}
+                          style={{ fontSize: '15px', padding: '12px 16px', width: '100%', borderRadius: '8px', border: '1px solid #CBD5E1', outline: 'none' }}
+                        />
+                        <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>
+                          Provide a phone number or handles so our support specialists can reach you immediately.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <div className="cd-field">
                   <label htmlFor="t-title" style={{ fontSize: '14px', fontWeight: '600', color: '#334155', display: 'block', marginBottom: '8px' }}>Subject</label>
                   <input
@@ -1389,6 +1598,73 @@ export default function MyTickets() {
                     rows={9} required minLength={10}
                     style={{ fontSize: '16px', padding: '14px 18px', width: '100%', borderRadius: '8px', border: '1px solid #CBD5E1', outline: 'none', resize: 'vertical' }}
                   />
+                </div>
+
+                <div className="cd-field" style={{ marginTop: '20px' }}>
+                  <label style={{ fontSize: '14px', fontWeight: '600', color: '#334155', display: 'block', marginBottom: '8px' }}>Attachments (optional)</label>
+                  <div style={{
+                    border: '1.5px dashed #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    textAlign: 'center',
+                    background: '#F8FAFC',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onClick={() => document.getElementById('t-attachments-file').click()}
+                  >
+                    <input
+                      id="t-attachments-file"
+                      type="file"
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) {
+                          const fileNames = Array.from(e.target.files).map(f => f.name);
+                          setAttachments(prev => [...prev, ...fileNames]);
+                        }
+                      }}
+                      style={{ display: 'none' }}
+                    />
+                    <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📎</span>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#475569' }}>Click to select files</span>
+                    {incidentType === "incident" && (
+                      <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#EF4444', fontWeight: '500' }}>
+                        * We highly recommend attaching relevant log files, system diagnostic info, or screenshots to help our support specialists diagnose the incident faster.
+                      </p>
+                    )}
+                  </div>
+                  {attachments.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
+                      {attachments.map((file, idx) => (
+                        <div key={idx} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: '#F1F5F9',
+                          border: '1px solid #CBD5E1',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: '#475569'
+                        }}>
+                          <span>📎 {file}</span>
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAttachments(prev => prev.filter((_, i) => i !== idx));
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontWeight: 'bold', padding: '0 2px' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <button type="submit" className="cd-btn cd-btn--primary" style={{ width: '100%', marginTop: '24px', padding: '12px 24px', fontSize: '16px', fontWeight: '600' }} disabled={creating}>
@@ -1638,6 +1914,9 @@ export default function MyTickets() {
                   <option value="all">Category: All</option>
                   <option value="billing">Billing</option>
                   <option value="technical">Technical</option>
+                  <option value="account">Account</option>
+                  <option value="authentication">Authentication</option>
+                  <option value="finance">Finance</option>
                   <option value="general">General</option>
                 </select>
 
@@ -1732,20 +2011,52 @@ export default function MyTickets() {
                             </div>
 
                             {/* Rich Status badge with strong contrast */}
-                            <span style={{
-                              background: badgeInfo.bg,
-                              color: badgeInfo.text,
-                              border: `1px solid ${badgeInfo.border}`,
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '11.5px',
-                              fontWeight: '700',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}>
-                              {badgeInfo.label}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {ticket.incident_type === "incident" && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '750',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  background: '#FEE2E2',
+                                  color: '#EF4444',
+                                  border: '1px solid #FCA5A5',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}>
+                                  🚨 Incident
+                                </span>
+                              )}
+                              {recentlyUpdated.has(ticket.id) && (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  background: '#3B82F6',
+                                  color: '#ffffff',
+                                  boxShadow: '0 0 8px rgba(59, 130, 246, 0.4)',
+                                  animation: 'pulse 2s infinite'
+                                }}>
+                                  New Update
+                                </span>
+                              )}
+                              <span style={{
+                                background: badgeInfo.bg,
+                                color: badgeInfo.text,
+                                border: `1px solid ${badgeInfo.border}`,
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11.5px',
+                                fontWeight: '700',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                {badgeInfo.label}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Ticket description preview */}
@@ -1768,10 +2079,15 @@ export default function MyTickets() {
                           </div>
 
                           {/* Extra Metadata Row */}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', fontSize: '11.5px', color: '#64748B', borderTop: '1px dashed #E2E8F0', paddingTop: '8px', marginTop: '4px' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', fontSize: '11.5px', color: '#64748B', borderTop: '1px dashed #E2E8F0', paddingTop: '8px', marginTop: '4px', alignItems: 'center' }}>
                             <span>👤 <strong>Assigned To:</strong> {ticket.assigned_to ? "Support Specialist" : "AI Autopilot"}</span>
                             <span>⏱️ <strong>Last Updated:</strong> {getLastUpdatedText(ticket)}</span>
                             <span>⚡ <strong>Resolution ETA:</strong> {getResolutionETA(ticket)}</span>
+                            {ticket.ai_replied && (
+                              <span style={{ background: '#F3E8FF', color: '#7C3AED', border: '1px solid #D8B4FE', padding: '2px 6px', borderRadius: '4px', fontWeight: '750', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                ✨ AI Replied
+                              </span>
+                            )}
                           </div>
 
                           <div className="rich-ticket-card__footer" style={{ borderTop: 'none', paddingTop: '0', marginTop: '0', display: 'flex', justifyContent: 'flex-end' }}>
@@ -1908,9 +2224,9 @@ export default function MyTickets() {
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <div>
-              <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>My Ticket Analytics</h1>
+              <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>My Activity &amp; Analytics</h1>
               <p style={{ margin: '4px 0 0 0', fontSize: '14.5px', color: '#64748B' }}>
-                Performance, resolution rates, and category distribution of your support tickets
+                Your recent ticket actions, system updates, and support analytics overview
               </p>
             </div>
             <button
@@ -2040,7 +2356,7 @@ export default function MyTickets() {
           </div>
 
           {/* Performance Insight Box */}
-          <div style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', border: '1px solid #BBF7D0', borderRadius: '16px', padding: '24px', color: '#166534' }}>
+          <div style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', border: '1px solid #BBF7D0', borderRadius: '16px', padding: '24px', color: '#166534', marginBottom: '24px' }}>
             <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '700' }}>💡 Smart Performance Summary</h4>
             <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.5 }}>
               {tickets.length === 0 ? (
@@ -2052,6 +2368,65 @@ export default function MyTickets() {
                 } Your most active ticket category is ${dominantCat || "General"}.`
               )}
             </p>
+          </div>
+
+          {/* Recent Activity Timeline Feed */}
+          <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.01)' }}>
+            <h3 style={{ fontSize: '17px', fontWeight: '700', color: '#0F172A', marginBottom: '20px', borderBottom: '1px solid #F1F5F9', paddingBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Activity size={18} style={{ color: '#6366F1' }} /> Recent Activity Feed
+            </h3>
+            {tickets.length === 0 ? (
+              <div style={{ padding: '32px', textAlign: 'center', color: '#64748B', fontSize: '14.5px' }}>
+                No recent activity recorded. Submit a support ticket to start.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {tickets.slice(0, 5).map((t, idx) => {
+                  const isIncident = t.incident_type === "incident";
+                  const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : "Recently";
+                  
+                  return (
+                    <div key={t.id || idx} style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', borderBottom: idx < Math.min(tickets.length, 5) - 1 ? '1px dashed #F1F5F9' : 'none', paddingBottom: idx < Math.min(tickets.length, 5) - 1 ? '16px' : '0' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        background: isIncident ? '#FEF2F2' : '#EEF2FF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: isIncident ? '#EF4444' : '#6366F1',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        flexShrink: 0
+                      }}>
+                        {isIncident ? "🚨" : "🎫"}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
+                          {isIncident ? 'Reported Incident' : 'Created Support Ticket'}{' '}
+                          <span style={{ color: '#6366F1', fontFamily: 'monospace' }}>#TKT-{t.id?.slice(0, 8).toUpperCase()}</span>
+                        </div>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748B' }}>
+                          Subject: <strong style={{ color: '#334155' }}>{t.title}</strong>
+                        </p>
+                        {t.status === "resolved" && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '12px', background: '#ECFDF5', color: '#065F46', padding: '2px 8px', borderRadius: '4px', width: 'fit-content', fontWeight: '600' }}>
+                            <span>✓</span> Resolved successfully
+                          </div>
+                        )}
+                        {t.status === "escalated" && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '12px', background: '#FEF2F2', color: '#991B1B', padding: '2px 8px', borderRadius: '4px', width: 'fit-content', fontWeight: '600' }}>
+                            <span>🚨</span> Escalated to Support Specialist
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#94A3B8' }}>{dateStr}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
         </div>
@@ -2288,6 +2663,212 @@ export default function MyTickets() {
 
         </div>
       )}
+
+      {/* ═══ RECOMMENDED ARTICLE TAB ══════════════════════════════ */}
+      {activeTab === "article" && (() => {
+        const articleId = location.pathname.split("/my-tickets/article/")[1] || "";
+        const article = ARTICLE_DETAILS[articleId];
+
+        if (!article) {
+          return (
+            <div className="cd-fade-in" style={{ padding: '40px 32px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px', gap: '16px' }}>
+              <div style={{ background: '#FEE2E2', color: '#EF4444', width: '64px', height: '64px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BookOpen size={32} />
+              </div>
+              <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#0F172A', margin: 0 }}>Guide Not Found</h2>
+              <p style={{ color: '#64748B', fontSize: '15px', maxWidth: '400px', margin: 0, lineHeight: 1.5 }}>
+                The support guide you are looking for does not exist or may have been relocated.
+              </p>
+              <button
+                onClick={() => navigate("/my-tickets")}
+                style={{
+                  background: '#0F172A',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  marginTop: '12px'
+                }}
+              >
+                Return to Dashboard
+              </button>
+            </div>
+          );
+        }
+
+        const catBadgeColor =
+          article.category?.toLowerCase() === "billing" ? { bg: '#EFF6FF', text: '#2563EB', border: '#BFDBFE' } :
+          article.category?.toLowerCase() === "technical" ? { bg: '#ECFDF5', text: '#059669', border: '#A7F3D0' } :
+          article.category?.toLowerCase() === "account" ? { bg: '#FFFBEB', text: '#D97706', border: '#FDE68A' } :
+          { bg: '#F3F4F6', text: '#4B5563', border: '#E5E7EB' };
+
+        return (
+          <div className="cd-fade-in" style={{ padding: '32px', width: '100%' }}>
+            {/* Breadcrumbs */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748B', marginBottom: '24px', fontWeight: '500' }}>
+              <Link to="/my-tickets" style={{ color: '#64748B', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#0F172A'} onMouseLeave={e => e.currentTarget.style.color = '#64748B'}>Dashboard</Link>
+              <span>/</span>
+              <span style={{ color: '#94A3B8' }}>Help Center Guides</span>
+              <span>/</span>
+              <span style={{ color: '#0F172A', fontWeight: '600' }}>{article.title}</span>
+            </div>
+
+            {/* Layout Grid */}
+            <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              
+              {/* Left Main Column: Content */}
+              <div style={{ flex: '1 1 650px', background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '40px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.01)' }}>
+                {/* Category & Date Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    padding: '4px 10px',
+                    borderRadius: '99px',
+                    background: catBadgeColor.bg,
+                    color: catBadgeColor.text,
+                    border: `1px solid ${catBadgeColor.border}`
+                  }}>
+                    {article.category} Guide
+                  </span>
+                  <span style={{ fontSize: '13px', color: '#94A3B8', fontWeight: '500' }}>
+                    Updated {article.lastUpdated}
+                  </span>
+                </div>
+
+                {/* Title */}
+                <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', margin: '0 0 24px 0', lineHeight: 1.25, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {article.title}
+                </h1>
+
+                {/* Separator */}
+                <div style={{ height: '1px', background: '#F1F5F9', marginBottom: '28px' }} />
+
+                {/* Article Body */}
+                <div className="kb-article-body" style={{ fontSize: '15px', color: '#334155', lineHeight: '1.7', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {article.content}
+                </div>
+              </div>
+
+              {/* Right Sidebar Column */}
+              <div style={{ width: '320px', display: 'flex', flexDirection: 'column', gap: '24px', flexShrink: 0 }} className="article-sidebar">
+                
+                {/* Back Widget */}
+                <button
+                  onClick={() => navigate("/my-tickets")}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    background: '#ffffff',
+                    border: '1px solid #E2E8F0',
+                    color: '#475569',
+                    borderRadius: '12px',
+                    padding: '14px',
+                    fontWeight: '600',
+                    fontSize: '14.5px',
+                    cursor: 'pointer',
+                    width: '100%',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = '#F8FAFC';
+                    e.currentTarget.style.color = '#0F172A';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = '#ffffff';
+                    e.currentTarget.style.color = '#475569';
+                  }}
+                >
+                  <ArrowLeft size={16} />
+                  <span>Back to Dashboard</span>
+                </button>
+
+                {/* Need Help CTA Card */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)',
+                  border: '1px solid #E9D5FF',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.01)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '16px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#7E22CE', fontWeight: '750', fontSize: '15px' }}>
+                    <Sparkles size={16} />
+                    <span>Still need assistance?</span>
+                  </div>
+                  
+                  <p style={{ margin: 0, fontSize: '13px', color: '#581C87', lineHeight: '1.5' }}>
+                    If this guide didn't answer your question, submit a ticket to our AI Autopilot. We will route it to the right specialist or resolve it instantly!
+                  </p>
+
+                  <button
+                    onClick={() => navigate("/my-tickets/new")}
+                    style={{
+                      background: '#7E22CE',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '11px 16px',
+                      fontWeight: '600',
+                      fontSize: '13.5px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#6B21A8'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#7E22CE'}
+                  >
+                    <span>Submit a Support Ticket</span>
+                    <span>→</span>
+                  </button>
+                </div>
+
+                {/* Quick Info Card */}
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '16px',
+                  padding: '20px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Article Details</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: '#475569' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Audience:</span>
+                      <strong style={{ color: '#1E293B' }}>All Customers</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Estimated Read:</span>
+                      <strong style={{ color: '#1E293B' }}>2 min read</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Relevance:</span>
+                      <span style={{ color: '#10B981', fontWeight: '700' }}>✓ Verified Chunks</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

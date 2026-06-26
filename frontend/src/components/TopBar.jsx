@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell, Menu } from 'lucide-react';
+import { Search, Bell, Menu, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { notificationsAPI } from '../api/services';
 import { useWebSocketEvent } from '../context/WebSocketContext';
@@ -170,7 +170,7 @@ export default function TopBar({ title, onToggleSidebar }) {
               background: '#0F172A',
               border: 'none',
               borderRadius: '100px',
-              padding: '4px 12px 4px 4px',
+              padding: '4px 14px 4px 4px',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
@@ -186,7 +186,7 @@ export default function TopBar({ title, onToggleSidebar }) {
               width: '32px',
               height: '32px',
               borderRadius: '50%',
-              background: user?.avatar ? 'transparent' : '#FBBF24',
+              background: user?.avatar ? 'transparent' : '#4a659cff',
               color: '#0F172A',
               fontWeight: '800',
               fontSize: '14px',
@@ -202,8 +202,10 @@ export default function TopBar({ title, onToggleSidebar }) {
                 user?.name?.[0]?.toUpperCase() || 'U'
               )}
             </div>
-            <span style={{ color: 'rgba(255,255,255,0.25)', userSelect: 'none', fontSize: '14px' }}>|</span>
-            <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#94A3B8', display: 'flex', alignItems: 'center', userSelect: 'none' }}>⋮</span>
+            <span style={{ fontSize: '13.5px', fontWeight: '600', color: '#E2E8F0', userSelect: 'none' }}>
+              {user?.name ? user.name.split(' ')[0] : 'User'}
+            </span>
+            <ChevronDown size={14} style={{ color: '#E2E8F0', transition: 'transform 0.2s', transform: showProfileMenu ? 'rotate(180deg)' : 'none' }} />
           </button>
 
           {showProfileMenu && (

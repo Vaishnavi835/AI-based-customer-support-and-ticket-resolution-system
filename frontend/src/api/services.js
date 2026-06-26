@@ -52,8 +52,14 @@ export const authAPI = {
 
 export const ticketsAPI = {
   /** Create a new support ticket. */
-  create: (title, description) =>
-    api.post("/tickets/", { title, description }),
+  create: (title, description, incidentType = "ticket", contactInfo = null, attachments = []) =>
+    api.post("/tickets/", { 
+      title, 
+      description, 
+      incident_type: incidentType, 
+      contact_info: contactInfo, 
+      attachments: attachments 
+    }),
 
   /**
    * List tickets with optional filters and pagination.
