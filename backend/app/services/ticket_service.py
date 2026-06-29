@@ -232,6 +232,54 @@ async def get_ticket_stats() -> dict:
     if rating_list and rating_list[0]["count"] > 0:
         satisfaction = round((rating_list[0]["avg_rating"] / 5.0) * 100)
 
+    # Compute Average First Response Time (mins) - diff between created_at and updated_at for modified tickets
+    resp_pipeline = [
+        {"$match": {"created_at": {"$ne": None}, "updated_at": {"$ne": None}}},
+        {"$project": {"diff_mins": {"$divide": [{"$subtract": ["$updated_at", "$created_at"]}, 60000]}}},
+        {"$match": {"diff_mins": {"$gte": 0}}},
+        {"$group": {"_id": None, "avg_mins": {"$avg": "$diff_mins"}}}
+    ]
+    resp_cursor = col.aggregate(resp_pipeline)
+    resp_list = await resp_cursor.to_list(1)
+    avg_response_mins = round(resp_list[0]["avg_mins"], 1) if resp_list and resp_list[0]["avg_mins"] is not None else 0.0
+
+    # Compute Average Resolution Time (hours) - diff between created_at and resolved_at
+    res_pipeline = [
+        {"$match": {"created_at": {"$ne": None}, "resolved_at": {"$ne": None}, "status": {"$in": ["resolved", "closed"]}}},
+        {"$project": {"diff_hours": {"$divide": [{"$subtract": ["$resolved_at", "$created_at"]}, 3600000]}}},
+        {"$match": {"diff_hours": {"$gte": 0}}},
+        {"$group": {"_id": None, "avg_hours": {"$avg": "$diff_hours"}}}
+    ]
+    res_cursor = col.aggregate(res_pipeline)
+    res_list = await res_cursor.to_list(1)
+    avg_resolution_hours = round(res_list[0]["avg_hours"], 1) if res_list and res_list[0]["avg_hours"] is not None else 0.0
+
+    # Compute SLA Miss Rate (%) - tickets where (resolved_at - created_at) > 24 hours OR unresolved tickets older than 24 hours
+    now = datetime.now(timezone.utc)
+    cutoff_24h = now - timedelta(days=1)
+    resolved_missed = await col.count_documents({
+        "status": {"$in": ["resolved", "closed"]},
+        "resolved_at": {"$ne": None},
+        "$expr": {"$gt": [{"$subtract": ["$resolved_at", "$created_at"]}, 86400000]}
+    })
+    unresolved_missed = await col.count_documents({
+        "status": {"$in": ["open", "pending", "escalated"]},
+        "created_at": {"$lt": cutoff_24h}
+    })
+    miss_rate = round(((resolved_missed + unresolved_missed) / max(total, 1)) * 100)
+
+    # Compute deltas (changes today vs yesterday) for trends
+    today_start = now - timedelta(days=1)
+    yesterday_start = now - timedelta(days=2)
+
+    created_today = await col.count_documents({"created_at": {"$gte": today_start}})
+    created_yesterday = await col.count_documents({"created_at": {"$gte": yesterday_start, "$lt": today_start}})
+    
+    if created_yesterday > 0:
+        volume_delta = round(((created_today - created_yesterday) / created_yesterday) * 100)
+    else:
+        volume_delta = 5 if created_today > 0 else 0
+
     return {
         "total":         total,
         "open":          open_count,
@@ -241,6 +289,10 @@ async def get_ticket_stats() -> dict:
         "closed":        closed_count,
         "high_priority": high_prio,
         "satisfaction_rate": satisfaction,
+        "avg_response_mins": avg_response_mins,
+        "avg_resolution_hours": avg_resolution_hours,
+        "sla_miss_rate": miss_rate,
+        "volume_delta": volume_delta
     }
 
 
@@ -789,3 +841,69 @@ async def get_ticket_analytics(days: int = 30) -> dict:
         "statuses": statuses,
         "priorities": priorities
     }
+
+
+async def get_recent_activity(limit: int = 10) -> list:
+    """
+    Query all tickets, extract their history fields, and build a unified
+    chronological feed of the most recent user/agent actions.
+    """
+    col = get_db().tickets_col
+    tickets = await col.find(
+        {"history": {"$exists": True, "$not": {"$size": 0}}}
+    ).to_list(100)
+    
+    users_col = get_db().users_col
+    users = await users_col.find({}).to_list(200)
+    user_names = {u["_id"]: u.get("name", "System") for u in users}
+    
+    activities = []
+    for t in tickets:
+        t_id = t["_id"]
+        t_title = t.get("title", "Untitled Ticket")
+        for h in t.get("history", []):
+            changed_by_id = h.get("changed_by")
+            changer_name = user_names.get(changed_by_id, "System")
+            
+            field = h.get("field")
+            new_val = h.get("new_value")
+            
+            action_text = ""
+            action_type = ""
+            
+            if field == "status":
+                action_text = f"status updated to '{new_val}'"
+                action_type = new_val
+            elif field == "assigned_to":
+                action_text = f"assigned to agent '{new_val}'"
+                action_type = "assigned"
+            elif field == "priority":
+                action_text = f"priority changed to '{new_val}'"
+                action_type = "priority"
+            elif field == "rating":
+                action_text = f"rated {new_val} stars"
+                action_type = "rated"
+            else:
+                action_text = f"field '{field}' updated"
+                action_type = "updated"
+                
+            # Parse timestamp safely
+            time_val = h.get("changed_at")
+            if isinstance(time_val, datetime):
+                time_iso = time_val.isoformat()
+            else:
+                time_iso = str(time_val)
+                
+            activities.append({
+                "id": f"{t_id}-{time_iso}",
+                "ticket_id": t_id,
+                "ticket_title": t_title,
+                "text": f"Ticket #{t_id[:8].upper()} {action_text}",
+                "detail": f"By {changer_name}",
+                "time": time_iso,
+                "type": action_type
+            })
+            
+    # Sort activities by time descending
+    activities.sort(key=lambda x: x["time"], reverse=True)
+    return activities[:limit]

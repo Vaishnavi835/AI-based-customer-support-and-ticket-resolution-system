@@ -150,6 +150,15 @@ async def get_completed_recent_tickets_route(
     return await get_completed_recent_tickets(days=30)
 
 
+@router.get("/recent-activity")
+async def get_recent_activity_route(
+    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+):
+    """Get the 10 most recent ticket activities from history. Admin/Agent only."""
+    from app.services.ticket_service import get_recent_activity
+    return await get_recent_activity(limit=10)
+
+
 @router.get("/{ticket_id}")
 async def get_ticket_route(
     ticket_id: str,

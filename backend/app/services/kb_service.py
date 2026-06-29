@@ -30,14 +30,10 @@ def _now():
 
 async def seed_knowledge_base():
     """
-    Populate the MongoDB knowledge_base collection from sample_docs.py
-    if the collection is currently empty.
-
-    This runs once on first startup. After that, the collection owns
-    the data and sample_docs.py is just the initial source of truth.
-    You can safely add new docs to sample_docs.py and they'll be seeded
-    on the next fresh DB start — but existing docs won't be overwritten.
+    Populate the MongoDB knowledge_base collection from the markdown files
+    in backend/app/knowledge/documents if the collection is empty.
     """
+    import os
     col   = get_db().knowledge_col
     count = await col.count_documents({})
 
@@ -45,9 +41,42 @@ async def seed_knowledge_base():
         logger.info(f"KB: Collection already has {count} documents — skipping seed")
         return
 
+    # Check for documents directory
+    docs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "knowledge", "documents")
+    if os.path.exists(docs_dir):
+        doc_mappings = [
+            {"filename": "nexus_api_authentication_guide.md", "category": "authentication"},
+            {"filename": "nexus_billing_faq.md", "category": "billing"},
+            {"filename": "nexus_error_code_reference.md", "category": "technical"},
+            {"filename": "nexus_account_management.md", "category": "account"},
+            {"filename": "nexus_general_guide.md", "category": "general"},
+            {"filename": "nexus_company_policies.md", "category": "company policies"},
+            {"filename": "nexus_product_features.md", "category": "product features"},
+        ]
+        docs = []
+        for idx, item in enumerate(doc_mappings, start=1):
+            filename = item["filename"]
+            filepath = os.path.join(docs_dir, filename)
+            if os.path.exists(filepath):
+                with open(filepath, "r", encoding="utf-8") as f:
+                    content = f.read()
+                docs.append({
+                    "_id":        f"kb_{idx:03d}",
+                    "title":      filename,
+                    "category":   item["category"],
+                    "content":    content,
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                })
+        if docs:
+            await col.insert_many(docs)
+            logger.info(f"KB: Seeded {len(docs)} documents from markdown files")
+            return
+
+    # Fallback to static KNOWLEDGE_BASE
     docs = [
         {
-            "_id":        doc["id"],        # use the human-readable id (kb_001, etc.)
+            "_id":        doc["id"],
             "title":      doc["title"],
             "category":   doc["category"],
             "content":    doc["content"],
@@ -56,9 +85,8 @@ async def seed_knowledge_base():
         }
         for doc in KNOWLEDGE_BASE
     ]
-
     await col.insert_many(docs)
-    logger.info(f"KB: Seeded {len(docs)} documents from sample_docs.py")
+    logger.info(f"KB: Seeded {len(docs)} documents from KNOWLEDGE_BASE fallback")
 
 
 # ── Read ──────────────────────────────────────────────────────────────────────

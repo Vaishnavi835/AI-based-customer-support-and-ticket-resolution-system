@@ -191,7 +191,7 @@ async def reindex_rag():
 async def search_knowledge_base(
     query:     str,
     top_k:     int   = 3,
-    threshold: float = 1.3,     # Day 19: NEW param
+    threshold: float = 1.5,     # Increased to 1.5 for long-form document matching
 ) -> list:
     """
     Convert the query to an embedding and find the top_k most semantically
@@ -273,6 +273,10 @@ async def generate_rag_response(
     from app.services.ai_service import client
 
     relevant_docs = await search_knowledge_base(question, top_k=3)
+    # FALLBACK: If query yields no docs and ticket context is available, use ticket details
+    if not relevant_docs and ticket_context:
+        fallback_query = f"{ticket_context.get('title', '')} {ticket_context.get('description', '')}"
+        relevant_docs = await search_knowledge_base(fallback_query, top_k=3)
 
     prompt = _build_rag_prompt(
         question=question,

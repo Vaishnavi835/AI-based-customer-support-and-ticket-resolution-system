@@ -100,8 +100,13 @@ async def start_chat(
         escalated_on_start = "Incident Report Auto-Escalation"
     else:
         try:
+            # Use ticket context if user's initial message is short or generic
+            search_query = data.message
+            if len(data.message.strip()) < 20 or data.message.lower().strip() in ["check my issue", "check it", "hi", "hello", "help", "check"]:
+                search_query = f"{ticket.get('title', '')} {ticket.get('description', '')}"
+
             ai_response, sources = await get_ai_response(
-                message=data.message,
+                message=search_query,
                 # Fix #11: Pass empty history for new chat — _build_rag_prompt
                 # already adds data.message as "Customer question:" so we don't
                 # duplicate it by also putting it in conversation_history.
@@ -211,6 +216,47 @@ async def add_message(
     is_escalated   = chat.get("escalated", False)
     assigned_agent = chat.get("agent_id")
     now            = datetime.now(timezone.utc).isoformat()
+
+    # Intercept Customer Resolution request
+    clean_msg = msg.content.lower().strip().replace(".", "").replace("!", "")
+    resolution_phrases = [
+        "issue is resolved",
+        "resolved",
+        "close this ticket",
+        "close the ticket",
+        "my issue is fixed",
+        "issue is fixed",
+        "fixed now",
+    ]
+    if any(phrase in clean_msg for phrase in resolution_phrases):
+        await db.tickets_col.update_one(
+            {"_id": chat["ticket_id"]},
+            {"$set": {"status": "resolved", "resolved_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}}
+        )
+        await col.update_one(
+            {"_id": chat_id},
+            {"$set": {"status": "closed", "updated_at": datetime.now(timezone.utc)}}
+        )
+        farewell = "It's great to hear your issue is resolved! I have marked this ticket as closed. If you encounter any other issues or have further questions, please don't hesitate to open a new ticket."
+        interaction = {
+            "prompt":    msg.content,
+            "response":  farewell,
+            "timestamp": now,
+            "rag_used":  False,
+            "sources":   [],
+        }
+        await col.update_one(
+            {"_id": chat_id},
+            {"$push": {"messages": interaction}}
+        )
+        await notify_chat_updated(chat_id, chat["ticket_id"], chat["user_id"])
+        return {
+            "message":     farewell,
+            "ai_response": farewell,
+            "escalated":   False,
+            "rag_used":    False,
+        }
+
     # ── Branch 1: escalated + agent has taken over ────────────────────────────
     if is_escalated and assigned_agent:
         if role == Role.customer:
