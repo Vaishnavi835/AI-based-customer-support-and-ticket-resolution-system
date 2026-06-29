@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Cell, PieChart, Pie
 } from "recharts";
-import { CheckCircle2, Clock, ThumbsUp, RotateCcw, Award, ShieldCheck, RefreshCw } from "lucide-react";
+import { CheckCircle2, Clock, ThumbsUp, RotateCcw, Award, RefreshCw } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -18,11 +18,6 @@ function fmtMinutes(mins) {
   return `${h}h ${m}m`;
 }
 
-/** Get day-of-week label (Mon…Sun) from a date string */
-function dayLabel(dateStr) {
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  return days[new Date(dateStr).getDay()];
-}
 
 /** Build last-7-days resolution trend from resolved/closed tickets */
 function buildResolutionTrend(allTickets) {

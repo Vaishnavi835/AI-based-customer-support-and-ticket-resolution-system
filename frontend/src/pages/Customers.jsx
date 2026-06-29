@@ -49,7 +49,7 @@ export default function Customers() {
         });
 
       setCustomers(filtered);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load customer list");
     } finally {
       setLoading(false);

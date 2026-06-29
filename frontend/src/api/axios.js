@@ -49,10 +49,18 @@ api.interceptors.response.use(
   (response) => response, // success — pass through unchanged
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired — clean up and redirect
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
+      // Skip auto-redirect if THIS request was the login endpoint itself.
+      // A 401 from /auth/login means wrong credentials — the Login page
+      // needs to catch that error and show the message to the user.
+      const requestUrl = error.config?.url || "";
+      const isLoginRequest = requestUrl.includes("/auth/login");
+
+      if (!isLoginRequest) {
+        // Token expired on some other request — clean up and redirect
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

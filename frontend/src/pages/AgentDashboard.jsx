@@ -22,12 +22,35 @@ const PRIORITY_COLORS = {
   high: '#EF4444', medium: '#F59E0B', low: '#6B7280',
 };
 
-const MOCK_RECENT_ACTIVITY = [
-  { id: 1, type: "resolved", text: "Ticket #231 resolved", detail: "Billing inquiry settled", time: "2m ago", icon: CheckCircle2, color: "#10B981" },
-  { id: 2, type: "escalated", text: "Ticket #198 escalated", detail: "API timeout error report", time: "14m ago", icon: AlertTriangle, color: "#EF4444" },
-  { id: 3, type: "assigned", text: "Ticket #187 assigned", detail: "Assigned to Agent Test", time: "31m ago", icon: UserPlus, color: "#3B82F6" },
-  { id: 4, type: "replied", text: "Ticket #3305 replied to", detail: "User sent billing screenshot", time: "1h ago", icon: MessageSquare, color: "#6366F1" },
-];
+const getActivityConfig = (type) => {
+  const t = (type || "").toLowerCase();
+  if (t === "resolved" || t === "closed") {
+    return { icon: CheckCircle2, color: "#10B981" };
+  }
+  if (t === "escalated" || t === "pending") {
+    return { icon: AlertTriangle, color: "#EF4444" };
+  }
+  if (t === "assigned") {
+    return { icon: UserPlus, color: "#3B82F6" };
+  }
+  return { icon: MessageSquare, color: "#6366F1" };
+};
+
+const formatActivityTime = (isoString) => {
+  if (!isoString) return "";
+  try {
+    const diffMs = new Date().getTime() - new Date(isoString).getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  } catch {
+    return "recent";
+  }
+};
 
 export default function AgentDashboard() {
   const { user } = useAuth();
@@ -39,20 +62,24 @@ export default function AgentDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAISuggestions, setShowAISuggestions] = useState(false);
 
-  // SLA alerts & team workload states
+  // SLA alerts, team workload & system-wide stats
   const [slaAlerts, setSlaAlerts] = useState([]);
   const [workload, setWorkload] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [systemStats, setSystemStats] = useState(null);
 
   const loadExtraData = useCallback(() => {
+    // System-wide stats for the top stat cards
+    ticketsAPI.stats()
+      .then((res) => setSystemStats(res.data))
+      .catch(() => setSystemStats(null));
+
     ticketsAPI.workload()
       .then((res) => {
         setWorkload(res.data || []);
       })
       .catch(() => {
-        setWorkload([
-          { agent_name: "Agent Test", open_tickets: 4, role: "support_agent" },
-          { agent_name: "Dev Team", open_tickets: 2, role: "admin" }
-        ]);
+        setWorkload([]);
       });
 
     ticketsAPI.list({ limit: 100 })
@@ -60,17 +87,20 @@ export default function AgentDashboard() {
         const all = res.data.tickets || res.data || [];
         const active = all.filter(t => t.status !== 'resolved' && t.status !== 'closed');
         const nearBreach = active.filter(t => t.priority === 'high' || t.priority === 'critical');
-        setSlaAlerts(nearBreach.map((t, i) => ({
-          ...t,
-          minutesLeft: i === 0 ? 12 : i === 1 ? 38 : 55
-        })).slice(0, 2));
+        setSlaAlerts(nearBreach.map((t) => {
+          const createdTime = new Date(t.created_at).getTime();
+          const currentTime = new Date().getTime();
+          const elapsedMins = Math.floor((currentTime - createdTime) / (1000 * 60));
+          const slaLimit = t.priority === 'critical' ? 60 : 240;
+          const minutesLeft = Math.max(0, slaLimit - elapsedMins);
+          return { ...t, minutesLeft };
+        }).sort((a, b) => a.minutesLeft - b.minutesLeft).slice(0, 2));
       })
-      .catch(() => {
-        setSlaAlerts([
-          { id: "3312", title: "Cannot access server: Port timeout 504", minutesLeft: 12, priority: "critical" },
-          { id: "3311", title: "Refund request duplicate renewal", minutesLeft: 38, priority: "high" }
-        ]);
-      });
+      .catch(() => setSlaAlerts([]));
+
+    ticketsAPI.recentActivity()
+      .then((res) => setRecentActivity(res.data || []))
+      .catch((err) => console.error("Failed to load recent activity", err));
   }, []);
 
   const loadTickets = useCallback(() => {
@@ -149,18 +179,12 @@ export default function AgentDashboard() {
     return `${dt.toLocaleString('default', { month: 'short' })} ${dt.getDate()} ${dt.getHours()}:${String(dt.getMinutes()).padStart(2, '0')}`;
   };
 
-  // Calculate dynamic card numbers
-  const openCount = data?.tickets?.open?.length || 0;
-  const pendingCount = data?.tickets?.pending?.length || 0;
-  const escalatedCount = data?.tickets?.escalated?.length || 0;
-  const resolvedCount = data?.tickets?.resolved?.length || 0;
-
-  // Baseline values to guarantee non-empty cards if actual DB has no historical closed tickets
+  // System-wide stats for the top cards (real DB counts for all tickets)
   const displayStats = {
-    open: openCount > 0 ? openCount : 12,
-    pending: pendingCount > 0 ? pendingCount : 5,
-    escalated: escalatedCount > 0 ? escalatedCount : 2,
-    resolved: resolvedCount > 0 ? resolvedCount : 48,
+    open:      systemStats?.open      ?? 0,
+    pending:   systemStats?.pending   ?? 0,
+    escalated: systemStats?.escalated ?? 0,
+    resolved:  systemStats?.resolved  ?? 0,
   };
 
   return (
@@ -463,10 +487,16 @@ export default function AgentDashboard() {
             <h3 className="text-section-title" style={{ margin: '0 0 16px 0' }}>Today's Overview</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
               {[
-                { label: "Tickets Created", value: "14", color: "#6366F1" },
-                { label: "Resolved", value: "12", color: "#10B981" },
-                { label: "Avg Response", value: "3m", color: "#F59E0B" },
-                { label: "Escalations", value: "1", color: "#EF4444" }
+                { label: "Tickets Created", value: systemStats?.total ?? '—', color: "#6366F1" },
+                { label: "Resolved", value: systemStats?.resolved ?? '—', color: "#10B981" },
+                { label: "Avg Response", value: (() => {
+                    const m = systemStats?.avg_response_mins;
+                    if (m == null) return '—';
+                    if (m < 60) return `${Math.round(m)}m`;
+                    if (m < 1440) return `${Math.round(m / 60)}h`;
+                    return `${Math.round(m / 1440)}d`;
+                  })(), color: "#F59E0B" },
+                { label: "Escalations", value: systemStats?.escalated ?? '—', color: "#EF4444" }
               ].map((item, idx) => (
                 <div key={idx} style={{ padding: '12px', background: '#F8FAFC', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '13px', color: '#64748B', fontWeight: '500' }}>{item.label}</span>
@@ -511,36 +541,46 @@ export default function AgentDashboard() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, overflowY: 'auto' }}>
-            {MOCK_RECENT_ACTIVITY.map((activity) => {
-              const Icon = activity.icon;
-              return (
-                <div key={activity.id} style={{
-                  display: 'flex', gap: '12px', padding: '12px', borderRadius: '10px',
-                  border: '1.5px solid #F1F5F9', transition: 'all 0.2s', cursor: 'pointer'
-                }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = '#E2E8F0';
-                    e.currentTarget.style.background = '#F8FAFC';
+            {recentActivity.length === 0 ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', fontSize: '13px', color: '#94A3B8' }}>
+                No recent activity logged yet.
+              </div>
+            ) : (
+              recentActivity.map((activity) => {
+                const config = getActivityConfig(activity.type);
+                const Icon = config.icon;
+                return (
+                  <div key={activity.id} style={{
+                    display: 'flex', gap: '12px', padding: '12px', borderRadius: '10px',
+                    border: '1.5px solid #F1F5F9', transition: 'all 0.2s', cursor: 'pointer'
                   }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = '#F1F5F9';
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <div style={{
-                    width: '32px', height: '32px', borderRadius: '8px', background: `${activity.color}15`,
-                    color: activity.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                  }}>
-                    <Icon size={16} />
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = '#E2E8F0';
+                      e.currentTarget.style.background = '#F8FAFC';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = '#F1F5F9';
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                    onClick={() => navigate(`/tickets/${activity.ticket_id}`)}
+                  >
+                    <div style={{
+                      width: '32px', height: '32px', borderRadius: '8px', background: `${config.color}15`,
+                      color: config.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                    }}>
+                      <Icon size={16} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#0F172A' }}>{activity.text}</div>
+                      <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{activity.detail}</div>
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: '#94A3B8', flexShrink: 0, alignSelf: 'flex-start' }}>
+                      {formatActivityTime(activity.time)}
+                    </span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '13.5px', fontWeight: '600', color: '#0F172A' }}>{activity.text}</div>
-                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px' }}>{activity.detail}</div>
-                  </div>
-                  <span style={{ fontSize: '11px', color: '#94A3B8', flexShrink: 0, alignSelf: 'flex-start' }}>{activity.time}</span>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

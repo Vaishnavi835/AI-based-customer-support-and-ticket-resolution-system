@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { SkeletonTableRow } from "../components/SkeletonCard";
 import {
-  Search, RefreshCw, ChevronRight, Inbox, Clock,
-  CheckCircle2, AlertCircle, ArrowRight
+  Search, RefreshCw, ChevronRight, Inbox, Clock
 } from "lucide-react";
 
 const PRIORITY_COLORS = {

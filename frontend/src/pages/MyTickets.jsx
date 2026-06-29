@@ -5,11 +5,9 @@ import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { useToast } from "../context/ToastContext";
 import {
-  PlusCircle, Ticket, Activity, CheckCircle,
-  Clock, Settings, FileText, Inbox, MailOpen,
   Search, Sparkles, Zap, BookOpen,
-  TrendingUp, TrendingDown, CreditCard, Cpu, User,
-  BarChart3, RefreshCw, ArrowLeft
+  CreditCard, Cpu, User,
+  BarChart3, ArrowLeft, PlusCircle, Activity, Settings, FileText
 } from "lucide-react";
 import { SkeletonCard } from "../components/SkeletonCard";
 import {
@@ -19,13 +17,6 @@ import {
 } from "recharts";
 
 /* ── Color maps ────────────────────────────────────────────────── */
-const STATUS_COLORS = {
-  open: "blue",
-  pending: "orange", // Changed from yellow to orange for instant state visibility
-  escalated: "red",
-  resolved: "green",
-  closed: "gray",
-};
 
 const STATUS_BADGE_MAP = {
   open: { label: "🟢 Open", bg: "#EFF6FF", text: "#1E40AF", border: "#BFDBFE" },
@@ -33,13 +24,6 @@ const STATUS_BADGE_MAP = {
   escalated: { label: "🔴 Escalated", bg: "#FEE2E2", text: "#991B1B", border: "#FCA5A5" },
   resolved: { label: "✅ Resolved", bg: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
   closed: { label: "⏹ Closed", bg: "#F3F4F6", text: "#374151", border: "#E5E7EB" },
-};
-
-const PRIORITY_COLORS = {
-  low: "green",
-  medium: "yellow",
-  high: "red",
-  critical: "red",
 };
 
 const PRIORITY_BADGE_STYLES = {
@@ -85,13 +69,6 @@ const getLastUpdatedText = (ticket) => {
   return `Updated ${Math.floor(diffHours / 24)}d ago`;
 };
 
-const getResolutionETA = (ticket) => {
-  const priority = (ticket.priority || "").toLowerCase();
-  if (priority === "critical") return "15 mins";
-  if (priority === "high") return "1 hour";
-  if (priority === "medium") return "4 hours";
-  return "24 hours";
-};
 
 const getAIRecommendationText = (ticket) => {
   const cat = (ticket.category || "").toLowerCase();
@@ -284,12 +261,6 @@ export default function MyTickets() {
   const resolvedCount = tickets.filter(t => t.status === "resolved" || t.status === "closed").length;
   const totalCount = tickets.length;
 
-  const stats = {
-    total: totalCount,
-    open: openCount,
-    inprog: pendingCount,
-    resolved: resolvedCount,
-  };
 
   const statusPieData = totalCount > 0 ? [
     { name: "Open", value: openCount, color: "#3B82F6" },
@@ -623,7 +594,7 @@ export default function MyTickets() {
     const counts = { low: 0, medium: 0, high: 0, critical: 0 };
     tickets.forEach(t => {
       const prio = (t.priority || "low").toLowerCase();
-      if (counts.hasOwnProperty(prio)) counts[prio]++;
+      if (prio in counts) counts[prio]++;
     });
     return Object.keys(counts).map((prio, idx) => ({
       name: prio.charAt(0).toUpperCase() + prio.slice(1),
@@ -944,9 +915,8 @@ export default function MyTickets() {
                   </div>
                 </div>
 
-                {/* Legend list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, paddingLeft: '16px' }}>
-                  {statusPieData.map((item, idx) => {
+                  {statusPieData.map((item) => {
                     const pct = totalCount > 0 ? Math.round((item.value / totalCount) * 100) : (item.name === "Open" ? 40 : item.name === "Pending" ? 20 : 40);
                     return (
                       <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
@@ -1268,7 +1238,7 @@ export default function MyTickets() {
                               <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0F172A' }}>
                                 {ticket.title ? ticket.title.charAt(0).toUpperCase() + ticket.title.slice(1) : "Untitled Request"}
                               </h4>
-                              <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '600' }}>#{ticket.id}</span>
+                              <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: '600' }}>#{ticket.id} • {timeStr}</span>
                             </div>
                           </div>
 

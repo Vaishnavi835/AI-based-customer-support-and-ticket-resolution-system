@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { useToast } from "../context/ToastContext";
-import { Sparkles, UserPlus, FileText, Check, Bot, AlertTriangle, ArrowRight, X } from "lucide-react";
+import { Sparkles, UserPlus, Check, Bot, AlertTriangle, ArrowRight, X } from "lucide-react";
 import { SkeletonCard } from "../components/SkeletonCard";
 
 const MOCK_AI_SUGGESTIONS = [
@@ -48,7 +47,6 @@ const MOCK_AI_SUGGESTIONS = [
 
 export default function AISuggestedTickets() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const toast = useToast();
   
   const [tickets, setTickets] = useState([]);

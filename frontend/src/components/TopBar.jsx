@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell, Menu, ChevronDown } from 'lucide-react';
+import { Bell, Menu, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { notificationsAPI } from '../api/services';
 import { useWebSocketEvent } from '../context/WebSocketContext';
@@ -106,15 +106,7 @@ export default function TopBar({ title, onToggleSidebar }) {
         <h1 className="topbar__title">{title || 'Dashboard'}</h1>
       </div>
 
-      {/* Center: Search */}
-      <div className="topbar__search">
-        <Search size={16} className="topbar__search-icon" />
-        <input
-          className="topbar__search-input"
-          placeholder="Search..."
-        />
-        <span className="topbar__search-kbd">⌘K</span>
-      </div>
+
 
       {/* Right: Actions */}
       <div className="topbar__right">

@@ -118,6 +118,9 @@ export const ticketsAPI = {
 
   /** Get tickets resolved in the last 30 days. */
   completedRecent: () => api.get("/tickets/completed-recent"),
+
+  /** Get the 10 most recent activities across all tickets */
+  recentActivity: () => api.get("/tickets/recent-activity"),
 };
 
 // ── Chat ──────────────────────────────────────────────────────────────────────

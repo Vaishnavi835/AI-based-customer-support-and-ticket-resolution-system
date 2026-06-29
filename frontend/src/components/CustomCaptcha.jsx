@@ -1,8 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, RefreshCw } from "lucide-react";
 
-export default function CustomCaptcha({ onVerified }) {
+export default function CustomCaptcha({ onVerified, reset }) {
   const [status, setStatus] = useState("idle"); // idle, verifying, verified
+
+  // When the parent resets captchaOk to false (e.g. after a failed login),
+  // bring the widget back to idle so the user can verify again.
+  useEffect(() => {
+    if (reset) {
+      setStatus("idle");
+    }
+  }, [reset]);
 
   const handleClick = () => {
     if (status !== "idle") return;

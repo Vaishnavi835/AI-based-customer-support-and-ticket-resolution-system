@@ -3363,6 +3363,12 @@ a:hover { text-decoration: underline; }
   color: #fff;
 }
 .td-action-btn--amber:hover { background: #D97706; }
+.td-action-btn--gray {
+  background: #F3F4F6;
+  color: #374151;
+  border: 1px solid #D1D5DB;
+}
+.td-action-btn--gray:hover { background: #E5E7EB; }
 
 /* ── Chat Area ───────────────────────────────────────────────────── */
 .td-chat-area {

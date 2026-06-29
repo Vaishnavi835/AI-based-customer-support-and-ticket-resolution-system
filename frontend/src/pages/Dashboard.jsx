@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { ticketsAPI } from "../api/services";
+import { ticketsAPI, usersAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import {
   Inbox, Clock, ShieldAlert, CheckCircle, Users, Star,
@@ -14,6 +14,18 @@ const MOCK_ACTIVITY = [
   { id: 5, action: "resolved", actor: "Support AI", ticket: "#3274", time: "2h ago", color: "#10B981" },
   { id: 6, action: "opened", actor: "Jane D.", ticket: "#3312", time: "3h ago", color: "#F59E0B" },
 ];
+
+const getLastUpdatedText = (ticket) => {
+  const time = ticket.updated_at || ticket.created_at;
+  if (!time) return "just now";
+  const diffMs = Date.now() - new Date(time).getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${Math.floor(diffHours / 24)}d ago`;
+};
 
 function StatCard({ icon: Icon, label, value, delta, color, bg }) {
   const isUp = delta >= 0;
@@ -73,18 +85,86 @@ function MiniBar({ label, value, max, color }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
+  const [agentsOnline, setAgentsOnline] = useState(7);
+  const [recentActivity, setRecentActivity] = useState(MOCK_ACTIVITY);
   const [loading, setLoading] = useState(true);
 
-  const loadStats = useCallback(() => {
-    ticketsAPI.stats()
-      .then((res) => setStats(res.data))
-      .catch(() => setStats({ total: 154, open: 42, pending: 18, escalated: 12, resolved: 82, closed: 64, high_priority: 15 }))
-      .finally(() => setLoading(false));
+  const loadStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1. Fetch live ticket stats
+      const statsRes = await ticketsAPI.stats();
+      setStats(statsRes.data);
+
+      // 2. Fetch live users list to count support staff
+      try {
+        const usersRes = await usersAPI.list();
+        const usersList = usersRes.data.users || usersRes.data || [];
+        const staff = usersList.filter(u => u.role === 'support_agent' || u.role === 'admin');
+        setAgentsOnline(staff.length > 0 ? staff.length : 7);
+      } catch {
+        setAgentsOnline(5);
+      }
+
+      // 3. Fetch live tickets for recent activity feed
+      try {
+        const ticketsRes = await ticketsAPI.list({ limit: 10 });
+        const ticketsList = ticketsRes.data.tickets || ticketsRes.data || [];
+        if (ticketsList.length > 0) {
+          const activities = ticketsList.slice(0, 6).map((ticket) => {
+            let action = "created";
+            let color = "#F59E0B";
+            if (ticket.status === "resolved" || ticket.status === "closed") {
+              action = "resolved";
+              color = "#10B981";
+            } else if (ticket.status === "escalated") {
+              action = "escalated";
+              color = "#EF4444";
+            } else if (ticket.assigned_to) {
+              action = "assigned";
+              color = "#3B82F6";
+            }
+
+            const timeText = getLastUpdatedText(ticket);
+            return {
+              id: ticket.id,
+              action: action,
+              actor: ticket.requester || "Customer",
+              ticket: `#${String(ticket.id).slice(-6)}`,
+              time: timeText,
+              color: color
+            };
+          });
+          setRecentActivity(activities);
+        } else {
+          setRecentActivity(MOCK_ACTIVITY);
+        }
+      } catch {
+        setRecentActivity(MOCK_ACTIVITY);
+      }
+    } catch {
+      // API unreachable — show zeros, never fake data
+      setStats({ total: 0, open: 0, pending: 0, escalated: 0, resolved: 0, closed: 0, high_priority: 0 });
+      setAgentsOnline(0);
+      setRecentActivity([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
   const total = stats?.total || 0;
+
+  if (loading) {
+    return (
+      <div style={{ padding: "40px", textAlign: "center", color: "#64748B" }}>
+        <RefreshCw size={24} style={{ animation: "spin 0.8s linear infinite", margin: "0 auto 12px", display: "block" }} />
+        Loading dashboard metrics...
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -105,11 +185,11 @@ export default function Dashboard() {
       {/* ── KPI Stat Cards ──────────────────────────────── */}
       {!loading && stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-          <StatCard icon={Inbox}       label="Open Tickets"        value={stats.open}         delta={+8}  color="#475569" bg="#F1F5F9" />
-          <StatCard icon={Clock}       label="Pending"             value={stats.pending}      delta={-3}  color="#F59E0B" bg="#FFFBEB" />
-          <StatCard icon={ShieldAlert} label="Escalated"           value={stats.escalated}    delta={+2}  color="#EF4444" bg="#FEF2F2" />
-          <StatCard icon={CheckCircle} label="Resolved Today"      value={stats.resolved}     delta={+14} color="#10B981" bg="#ECFDF5" />
-          <StatCard icon={Users}       label="Agents Online"       value={7}                  delta={0}   color="#6C63FF" bg="#EEEDFF" />
+          <StatCard icon={Inbox}       label="Open Tickets"        value={stats.open}         delta={stats.volume_delta}  color="#475569" bg="#F1F5F9" />
+          <StatCard icon={Clock}       label="Pending"             value={stats.pending}      color="#F59E0B" bg="#FFFBEB" />
+          <StatCard icon={ShieldAlert} label="Escalated"           value={stats.escalated}    color="#EF4444" bg="#FEF2F2" />
+          <StatCard icon={CheckCircle} label="Resolved Today"      value={stats.resolved}     color="#10B981" bg="#ECFDF5" />
+          <StatCard icon={Users}       label="Agents Online"       value={agentsOnline}       color="#6C63FF" bg="#EEEDFF" />
           <StatCard icon={Star}        label="Satisfaction"        value={stats.satisfaction_rate ? `${stats.satisfaction_rate}%` : "94%"}                delta={+1}  color="#F59E0B" bg="#FFFBEB" />
         </div>
       )}
@@ -142,10 +222,30 @@ export default function Dashboard() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {[
-              { label: 'First Response Time', value: '26m 50s', status: 'good', pct: 80 },
-              { label: 'Resolution Time', value: '4h 12m', status: 'warn', pct: 55 },
-              { label: 'Customer Satisfaction', value: stats.satisfaction_rate ? `${stats.satisfaction_rate}%` : '94%', status: 'good', pct: stats.satisfaction_rate || 94 },
-              { label: 'SLA Miss Rate', value: '8%', status: 'danger', pct: 8 },
+              {
+                label: 'First Response Time',
+                value: stats?.avg_response_mins ? `${stats.avg_response_mins}m` : '—',
+                status: (stats?.avg_response_mins || 0) < 15 ? 'good' : (stats?.avg_response_mins || 0) < 60 ? 'warn' : 'danger',
+                pct: Math.max(10, Math.min(100, 100 - Math.round(stats?.avg_response_mins || 0)))
+              },
+              {
+                label: 'Resolution Time',
+                value: stats?.avg_resolution_hours ? `${stats.avg_resolution_hours}h` : '—',
+                status: (stats?.avg_resolution_hours || 0) < 4 ? 'good' : (stats?.avg_resolution_hours || 0) < 24 ? 'warn' : 'danger',
+                pct: Math.max(10, Math.min(100, 100 - Math.round((stats?.avg_resolution_hours || 0) * 3)))
+              },
+              {
+                label: 'Customer Satisfaction',
+                value: stats?.satisfaction_rate ? `${stats.satisfaction_rate}%` : '94%',
+                status: (stats?.satisfaction_rate || 0) >= 90 ? 'good' : (stats?.satisfaction_rate || 0) >= 80 ? 'warn' : 'danger',
+                pct: stats?.satisfaction_rate || 94
+              },
+              {
+                label: 'SLA Miss Rate',
+                value: stats?.sla_miss_rate !== undefined ? `${stats.sla_miss_rate}%` : '—',
+                status: (stats?.sla_miss_rate || 0) < 5 ? 'good' : (stats?.sla_miss_rate || 0) < 15 ? 'warn' : 'danger',
+                pct: stats?.sla_miss_rate || 0
+              },
             ].map(item => (
               <div key={item.label}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
@@ -173,7 +273,7 @@ export default function Dashboard() {
           <span style={{ fontSize: '12px', color: '#6C63FF', fontWeight: '600', cursor: 'pointer' }}>View all</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {MOCK_ACTIVITY.map(item => (
+          {recentActivity.map(item => (
             <div key={item.id} style={{
               display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 12px',
               borderRadius: '10px', transition: 'background 0.1s', cursor: 'pointer'

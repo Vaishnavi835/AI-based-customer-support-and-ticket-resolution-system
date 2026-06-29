@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ticketsAPI } from "../api/services";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import { AlertCircle, Clock, Check, ArrowRight, UserCheck, ShieldAlert } from "lucide-react";
+import { Clock, Check, ArrowRight, UserCheck, ShieldAlert } from "lucide-react";
 import { SkeletonCard } from "../components/SkeletonCard";
 
 export default function PriorityQueue() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const toast = useToast();
 
   const [tickets, setTickets] = useState([]);

@@ -1,16 +1,14 @@
-import { useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Ticket, Users, BookOpen, BarChart3,
   Settings, ShieldAlert, PlusCircle,
-  Home, Inbox, Clock, CheckCircle, Tag, AtSign, Sparkles,
-  Activity, HelpCircle, Bot, AlertTriangle, MessageSquare,
+  Inbox, Tag, Sparkles,
+  Activity, HelpCircle, AlertTriangle, MessageSquare,
   TrendingUp, User
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useWebSocketEvent } from '../context/WebSocketContext';
 import { useToast } from '../context/ToastContext';
-import { ticketsAPI } from '../api/services';
 
 export default function Sidebar({ collapsed }) {
   const { user, logout } = useAuth();
@@ -20,12 +18,6 @@ export default function Sidebar({ collapsed }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const panelRef = useRef(null);
   const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, height: 0, opacity: 0 });
-  const [ccCount, setCcCount] = useState(0);
-
-  // Dynamic Badge States for Agent Sidebar
-  const [liveQueueCount, setLiveQueueCount] = useState(12);
-  const [priorityCount, setPriorityCount] = useState(4);
-  const [slaRiskCount, setSlaRiskCount] = useState(2);
 
   useLayoutEffect(() => {
     if (panelRef.current) {
@@ -45,54 +37,6 @@ export default function Sidebar({ collapsed }) {
   const isAgent = user?.role === 'support_agent';
   const isAdmin = user?.role === 'admin';
   const isCustomer = user?.role === 'customer';
-
-  const fetchCounts = useCallback(() => {
-    if (isAgent || isAdmin) {
-      ticketsAPI.ccCount().then(res => setCcCount(res.data.count)).catch(() => {});
-      
-      // Fetch Live Queue assigned count
-      ticketsAPI.agentTickets(user.id)
-        .then(res => {
-          const tickets = res.data.tickets || {};
-          const open = tickets.open || [];
-          const pending = tickets.pending || [];
-          const escalated = tickets.escalated || [];
-          const count = open.length + pending.length + escalated.length;
-          setLiveQueueCount(count > 0 ? count : 12);
-        })
-        .catch(() => {});
-
-      // Fetch Priority & SLA Risk count
-      ticketsAPI.list({ limit: 100 })
-        .then(res => {
-          const allTickets = res.data.tickets || res.data || [];
-          const activeTickets = allTickets.filter(t => t.status !== 'resolved' && t.status !== 'closed');
-          
-          const prio = activeTickets.filter(t => t.priority === 'high' || t.priority === 'critical').length;
-          setPriorityCount(prio > 0 ? prio : 4);
-
-          const risk = activeTickets.filter(t => t.escalation_risk === 'high' || t.priority === 'critical' || t.status === 'escalated').length;
-          setSlaRiskCount(risk > 0 ? risk : 2);
-        })
-        .catch(() => {});
-    }
-  }, [isAgent, isAdmin, user?.id]);
-
-  useEffect(() => {
-    fetchCounts();
-  }, [fetchCounts]);
-
-  useWebSocketEvent("ticket_cc_added", () => {
-    fetchCounts();
-  });
-
-  useWebSocketEvent("ticket_created", () => {
-    fetchCounts();
-  });
-
-  useWebSocketEvent("ticket_updated", () => {
-    fetchCounts();
-  });
 
   // Icon rail items differ per role
   const railItems = isCustomer

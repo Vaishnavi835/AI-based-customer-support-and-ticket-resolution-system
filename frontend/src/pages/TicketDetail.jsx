@@ -89,9 +89,9 @@ const getAITriageDetails = (ticket) => {
   const desc = (ticket.description || "").toLowerCase();
   const title = (ticket.title || "").toLowerCase();
   
-  let sentiment = "Inquisitive / Neutral";
-  let keywords = ["ticket"];
-  let routing = "General Support Queue";
+  let sentiment;
+  let keywords;
+  let routing;
   
   if (ticket.priority === "critical" || ticket.priority === "high") {
     sentiment = "Urgent / Frustrated 🔴";
@@ -152,7 +152,7 @@ export default function TicketDetail() {
     try {
       const res = await chatAPI.summary(chatId);
       setAiSummary(res.data);
-    } catch (err) {
+    } catch {
       setSummaryError("Could not generate summary.");
     } finally {
       setSummaryLoading(false);
@@ -437,6 +437,11 @@ export default function TicketDetail() {
               {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
                 <button onClick={() => handleStatusChange("resolved")} className="td-action-btn td-action-btn--green">
                   <CheckCircle size={14} /> Mark as Resolved
+                </button>
+              )}
+              {ticket.status === 'resolved' && (
+                <button onClick={() => handleStatusChange("closed")} className="td-action-btn td-action-btn--gray">
+                  <AlertCircle size={14} /> Close Ticket
                 </button>
               )}
               {(ticket.status === 'resolved' || ticket.status === 'closed') && (
@@ -740,7 +745,7 @@ export default function TicketDetail() {
                               await ticketsAPI.update(id, { rating: star });
                               toast.success("Thank you for your rating!");
                               await loadData();
-                            } catch (err) {
+                            } catch {
                               toast.error("Failed to submit rating");
                             }
                           }}

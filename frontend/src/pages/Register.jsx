@@ -188,6 +188,8 @@ function RegisterDemoSection() {
   );
 }
 
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function Register() {
   const [name,            setName]            = useState("");
   const [email,           setEmail]           = useState("");
@@ -215,8 +217,6 @@ export default function Register() {
   const navigate     = useNavigate();
   const toast        = useToast();
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  
   // Form validator check to enable the button
   const isFormValid =
     name.trim() !== "" &&
@@ -230,7 +230,6 @@ export default function Register() {
   // Real-time validator effect
   useEffect(() => {
     if (touched.name) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (name.trim() === "") setNameError("Full name is required.");
       else setNameError("");
     }

@@ -206,6 +206,7 @@ export default function Login() {
   const [error,        setError]        = useState("");
   const [loading,      setLoading]      = useState(false);
   const [captchaOk,    setCaptchaOk]    = useState(false);
+  const [captchaReset, setCaptchaReset] = useState(false);
 
   const { login }  = useAuth();
   const navigate   = useNavigate();
@@ -237,6 +238,7 @@ export default function Login() {
       setError(msg);
       toast.error(msg);
       setCaptchaOk(false);
+      setCaptchaReset(r => !r); // toggle to trigger captcha reset
     } finally {
       setLoading(false);
     }
@@ -339,7 +341,10 @@ export default function Login() {
             </div>
 
             {/* ── Custom Puzzle CAPTCHA ─────────────────── */}
-            <CustomCaptcha onVerified={(ok) => setCaptchaOk(ok)} />
+            <CustomCaptcha
+              onVerified={(ok) => { setCaptchaOk(ok); setCaptchaReset(false); }}
+              reset={captchaReset}
+            />
 
             {/* Enhanced CTA button */}
             <button

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ticketsAPI, usersAPI } from "../api/services";
-import { Ticket, Inbox, ChevronRight, Search, Filter } from "lucide-react";
+import { Ticket, Inbox, ChevronRight, Search } from "lucide-react";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { SkeletonTableRow } from "../components/SkeletonCard";
 

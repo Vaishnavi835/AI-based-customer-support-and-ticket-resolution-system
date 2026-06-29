@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ticketsAPI, ragAPI, chatAPI } from "../api/services";
 import { useToast } from "../context/ToastContext";
-import { Sparkles, Bot, FileText, CheckCircle, HelpCircle, Activity, Tag, RefreshCw } from "lucide-react";
+import { Sparkles, Bot, FileText, HelpCircle, Activity, Tag, RefreshCw } from "lucide-react";
 
 export default function AIAssistant() {
   const toast = useToast();
@@ -61,7 +61,7 @@ export default function AIAssistant() {
 
     try {
       switch (activeAction) {
-        case "summarize":
+        case "summarize": {
           // Summarize: query AI summarizer
           const sumRes = await chatAPI.summary(selectedTicketId).catch(() => null);
           if (sumRes && sumRes.data?.summary) {
@@ -81,6 +81,7 @@ export default function AIAssistant() {
             return;
           }
           break;
+        }
 
         case "reply":
           // Generate reply: tone-adjusted response
@@ -96,7 +97,7 @@ export default function AIAssistant() {
           }, 500);
           return;
 
-        case "troubleshoot":
+        case "troubleshoot": {
           // Ask RAG vector DB
           const ragRes = await ragAPI.ask(ticketContent, 3, selectedTicketId).catch(() => null);
           if (ragRes && ragRes.data?.answer) {
@@ -116,6 +117,7 @@ export default function AIAssistant() {
             return;
           }
           break;
+        }
 
         case "classify":
           // Sentiment, category, priority
@@ -150,7 +152,7 @@ export default function AIAssistant() {
         default:
           break;
       }
-    } catch (err) {
+    } catch {
       toast.error("Copilot reasoning error");
     } finally {
       setLoading(false);
@@ -215,7 +217,7 @@ export default function AIAssistant() {
               return (
                 <button
                   key={act.key}
-                  onClick={() => setActiveTab(act.key) || setActiveAction(act.key)}
+                  onClick={() => setActiveAction(act.key)}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px",
                     border: activeAction === act.key ? "1.5px solid #6366F1" : "1.5px solid #CBD5E1",

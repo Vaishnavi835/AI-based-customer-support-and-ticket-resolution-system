@@ -4,7 +4,7 @@ import { useWebSocketEvent } from "../context/WebSocketContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import {
-  Send, AlertCircle, Paperclip, X,
+  Send, Paperclip, X,
   MessageSquare, RefreshCw
 } from "lucide-react";
 
@@ -21,6 +21,24 @@ export default function Conversations() {
   const [messageText, setMessageText] = useState("");
   const [isInternalNote, setIsInternalNote] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState(null);
+
+  const handleSelectChat = async (c) => {
+    setSelectedChat(c);
+    setLoadingChat(true);
+    try {
+      const res = await chatAPI.getHistory(c.ticket_id);
+      const chatDetails = res.data[0] || res.data || c;
+      setSelectedChat({
+        ...c,
+        messages: chatDetails.messages || c.messages || []
+      });
+    } catch {
+      // keep existing chat data
+    } finally {
+      setLoadingChat(false);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  };
 
   // Load all active conversations — real data only
   const loadConversations = useCallback(async () => {
@@ -67,24 +85,6 @@ export default function Conversations() {
   useWebSocketEvent("chat_updated", () => {
     loadConversations();
   });
-
-  const handleSelectChat = async (c) => {
-    setSelectedChat(c);
-    setLoadingChat(true);
-    try {
-      const res = await chatAPI.getHistory(c.ticket_id);
-      const chatDetails = res.data[0] || res.data || c;
-      setSelectedChat({
-        ...c,
-        messages: chatDetails.messages || c.messages || []
-      });
-    } catch {
-      // keep existing chat data
-    } finally {
-      setLoadingChat(false);
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-    }
-  };
 
   const handleSend = async () => {
     const text = messageText.trim();
