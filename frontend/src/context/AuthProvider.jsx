@@ -51,7 +51,13 @@ export function AuthProvider({ children }) {
     return userObj;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Fix #7: Revoke token on the backend before clearing local state
+    try {
+      await authAPI.logout();
+    } catch {
+      // Best-effort — clear local state even if backend call fails
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem("access_token");

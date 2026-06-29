@@ -37,14 +37,29 @@ export const authAPI = {
 
   /** Get the currently logged-in user's profile. */
   me: () => api.get("/auth/me"),
+
+  /** Logout — revoke token on the backend. */
+  logout: () => api.post("/auth/logout"),
+
+  /** Get list of active logged-in device sessions. */
+  getSessions: () => api.get("/auth/sessions"),
+
+  /** Terminate all other device sessions. */
+  logoutOthers: () => api.post("/auth/sessions/logout-others"),
 };
 
 // ── Tickets ───────────────────────────────────────────────────────────────────
 
 export const ticketsAPI = {
   /** Create a new support ticket. */
-  create: (title, description) =>
-    api.post("/tickets/", { title, description }),
+  create: (title, description, incidentType = "ticket", contactInfo = null, attachments = []) =>
+    api.post("/tickets/", { 
+      title, 
+      description, 
+      incident_type: incidentType, 
+      contact_info: contactInfo, 
+      attachments: attachments 
+    }),
 
   /**
    * List tickets with optional filters and pagination.
@@ -119,8 +134,8 @@ export const chatAPI = {
   /** Get all chat sessions for a ticket. */
   getHistory: (ticketId) => api.get(`/chat/${ticketId}`),
 
-  /** List all chat sessions (admin/agent only). */
-  listAll: () => api.get("/chat/"),
+  /** List all chat sessions (admin/agent only). Supports pagination. */
+  listAll: (page = 1, limit = 20) => api.get("/chat/all", { params: { page, limit } }),
 
   /** Close a chat session. */
   close: (chatId) => api.patch(`/chat/${chatId}/close`),
@@ -179,26 +194,26 @@ export const ragAPI = {
 export const kbAPI = {
   /** List all KB documents (admin/agent). */
   list: (category = null) =>
-    api.get("/kb/", { params: category ? { category } : {} }),
+    api.get("/rag/knowledge-base", { params: category ? { category } : {} }),
 
   /** Get a single KB document. */
-  get: (docId) => api.get(`/kb/${docId}`),
+  get: (docId) => api.get(`/rag/knowledge-base/${docId}`),
 
   /** Add a new KB document (admin only). */
   add: (title, category, content) =>
-    api.post("/kb/", { title, category, content }),
+    api.post("/rag/knowledge-base", { title, category, content }),
 
   /** Update a KB document (admin only). */
-  update: (docId, updates) => api.patch(`/kb/${docId}`, updates),
+  update: (docId, updates) => api.put(`/rag/knowledge-base/${docId}`, updates),
 
   /** Delete a KB document (admin only). */
-  delete: (docId) => api.delete(`/kb/${docId}`),
+  delete: (docId) => api.delete(`/rag/knowledge-base/${docId}`),
 
   /** Manually trigger FAISS reindex (admin only). */
-  reindex: () => api.post("/kb/reindex"),
+  reindex: () => api.post("/rag/reindex"),
 
   /** List valid categories. */
-  categories: () => api.get("/kb/categories"),
+  categories: () => api.get("/rag/knowledge-base"), // Note: lists categories in response
 };
 
 // ── Users ─────────────────────────────────────────────────────────────────────

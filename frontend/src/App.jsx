@@ -40,6 +40,15 @@ import TicketDetail from "./pages/TicketDetail";
 import Reports from "./pages/Reports";
 import TicketStatistics from "./pages/TicketStatistics";
 
+// New Agent pages
+import MyQueue from "./pages/MyQueue";
+import AISuggestedTickets from "./pages/AISuggestedTickets";
+import PriorityQueue from "./pages/PriorityQueue";
+import Customers from "./pages/Customers";
+import Conversations from "./pages/Conversations";
+import AIAssistant from "./pages/AIAssistant";
+import AgentPerformance from "./pages/AgentPerformance";
+
 
 
 // Placeholder pages — you'll build these in Days 22-25
@@ -71,7 +80,16 @@ const PAGE_TITLES = {
   "/my-tickets": "My Tickets",
   "/my-tickets/new": "New Ticket",
   "/my-tickets/history": "Ticket History",
+  "/my-tickets/analytics": "My Activity",
+  "/my-tickets/ai-suggestions": "AI Copilot & Suggestions",
   "/profile": "Profile",
+  "/agent/my-queue": "My Queue",
+  "/agent/ai-suggested": "AI Suggested Tickets",
+  "/agent/priority-queue": "Priority Queue",
+  "/agent/customers": "Customers",
+  "/agent/conversations": "Conversations Workspace",
+  "/agent/ai-assistant": "AI Copilot Assistant",
+  "/agent/performance": "Performance Metrics",
 };
 
 function AppRoutes() {
@@ -89,7 +107,7 @@ function AppRoutes() {
   };
 
   const pageTitle = PAGE_TITLES[location.pathname] 
-    || (location.pathname.startsWith("/tickets/") ? "Ticket Detail" : "Dashboard");
+    || (location.pathname.startsWith("/tickets/") ? "Ticket Detail" : location.pathname.startsWith("/my-tickets/article/") ? "Help Center Guide" : "Dashboard");
 
   return (
     <div className={user ? "zd-layout" : ""}>
@@ -118,6 +136,21 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
           <Route path="/my-tickets/history" element={
+            <ProtectedRoute roles={["customer"]}>
+              <MyTickets />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-tickets/analytics" element={
+            <ProtectedRoute roles={["customer"]}>
+              <MyTickets />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-tickets/ai-suggestions" element={
+            <ProtectedRoute roles={["customer"]}>
+              <MyTickets />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-tickets/article/:articleId" element={
             <ProtectedRoute roles={["customer"]}>
               <MyTickets />
             </ProtectedRoute>
@@ -160,10 +193,53 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
 
-          {/* Admin only routes */}
+          {/* Knowledge Base — admin + agent */}
           <Route path="/knowledge-base" element={
-            <ProtectedRoute roles={["admin"]}>
+            <ProtectedRoute roles={["admin", "support_agent"]}>
               <KnowledgeBase />
+            </ProtectedRoute>
+          } />
+
+          {/* New agent-specific views */}
+          <Route path="/agent/my-queue" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <MyQueue />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agent/ai-suggested" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <AISuggestedTickets />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agent/priority-queue" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <PriorityQueue />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agent/customers" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <Customers />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agent/conversations" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <Conversations />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agent/ai-assistant" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <AIAssistant />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agent/performance" element={
+            <ProtectedRoute roles={["admin", "support_agent"]}>
+              <AgentPerformance />
             </ProtectedRoute>
           } />
 

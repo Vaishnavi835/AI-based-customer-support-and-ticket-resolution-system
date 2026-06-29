@@ -178,7 +178,7 @@ def test_list_chats_forbidden_for_customer():
     """Customers cannot list all chats."""
     override_user(role="customer")
     try:
-        response = client.get("/chat/")
+        response = client.get("/chat/all")
         assert response.status_code == 403
     finally:
         clear_overrides()

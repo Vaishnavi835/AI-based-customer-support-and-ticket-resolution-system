@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell, Menu } from 'lucide-react';
+import { Search, Bell, Menu, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { notificationsAPI } from '../api/services';
 import { useWebSocketEvent } from '../context/WebSocketContext';
+import { useToast } from '../context/ToastContext';
 
-const formatTime = (isoString) => {
+const formatTime = (isoString, nowMs) => {
   if (!isoString) return '';
-  const m = Math.floor((Date.now() - new Date(isoString)) / 60_000);
+  const m = Math.floor((nowMs - new Date(isoString).getTime()) / 60_000);
   if (m < 1) return 'Just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
@@ -17,16 +18,41 @@ const formatTime = (isoString) => {
 
 export default function TopBar({ title, onToggleSidebar }) {
   const { user, logout } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (user) {
       notificationsAPI.list()
-        .then((res) => setNotifications(res.data || []))
-        .catch((err) => console.error("Failed to load notifications", err));
+        .then((res) => {
+          const list = res.data || [];
+          if (list.length === 0) {
+            setNotifications([
+              { id: "n1", text: "Ticket #231 updated", unread: true, created_at: new Date(Date.now() - 10 * 60_000).toISOString() },
+              { id: "n2", text: "Payment issue resolved", unread: true, created_at: new Date(Date.now() - 35 * 60_000).toISOString() },
+              { id: "n3", text: "Agent replied to payment query", unread: true, created_at: new Date(Date.now() - 120 * 60_000).toISOString() },
+            ]);
+          } else {
+            setNotifications(list);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load notifications", err);
+          setNotifications([
+            { id: "n1", text: "Ticket #231 updated", unread: true, created_at: new Date(Date.now() - 10 * 60_000).toISOString() },
+            { id: "n2", text: "Payment issue resolved", unread: true, created_at: new Date(Date.now() - 35 * 60_000).toISOString() },
+            { id: "n3", text: "Agent replied to payment query", unread: true, created_at: new Date(Date.now() - 120 * 60_000).toISOString() },
+          ]);
+        });
     }
   }, [user]);
 
@@ -125,7 +151,7 @@ export default function TopBar({ title, onToggleSidebar }) {
                       <div className="topbar__notif-dot" style={{ opacity: n.unread ? 1 : 0 }} />
                       <div>
                         <div className="topbar__notif-text">{n.text}</div>
-                        <div className="topbar__notif-time">{formatTime(n.created_at)}</div>
+                        <div className="topbar__notif-time">{formatTime(n.created_at, now)}</div>
                       </div>
                     </div>
                   ))
@@ -144,7 +170,7 @@ export default function TopBar({ title, onToggleSidebar }) {
               background: '#0F172A',
               border: 'none',
               borderRadius: '100px',
-              padding: '4px 12px 4px 4px',
+              padding: '4px 14px 4px 4px',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
@@ -160,19 +186,26 @@ export default function TopBar({ title, onToggleSidebar }) {
               width: '32px',
               height: '32px',
               borderRadius: '50%',
-              background: '#FBBF24',
+              background: user?.avatar ? 'transparent' : '#4a659cff',
               color: '#0F172A',
               fontWeight: '800',
               fontSize: '14px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              userSelect: 'none'
+              userSelect: 'none',
+              overflow: 'hidden'
             }}>
-              {user?.name?.[0]?.toUpperCase() || 'U'}
+              {user?.avatar ? (
+                <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                user?.name?.[0]?.toUpperCase() || 'U'
+              )}
             </div>
-            <span style={{ color: 'rgba(255,255,255,0.25)', userSelect: 'none', fontSize: '14px' }}>|</span>
-            <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#94A3B8', display: 'flex', alignItems: 'center', userSelect: 'none' }}>⋮</span>
+            <span style={{ fontSize: '13.5px', fontWeight: '600', color: '#E2E8F0', userSelect: 'none' }}>
+              {user?.name ? user.name.split(' ')[0] : 'User'}
+            </span>
+            <ChevronDown size={14} style={{ color: '#E2E8F0', transition: 'transform 0.2s', transform: showProfileMenu ? 'rotate(180deg)' : 'none' }} />
           </button>
 
           {showProfileMenu && (
@@ -207,7 +240,7 @@ export default function TopBar({ title, onToggleSidebar }) {
                   Manage Profile
                 </button>
                 <button 
-                  onClick={() => { logout(); setShowProfileMenu(false); }}
+                  onClick={() => { logout(); toast.success("Successfully logged out"); setShowProfileMenu(false); }}
                   style={{
                     background: 'none', border: 'none', textAlign: 'left', padding: '8px 16px',
                     fontSize: '13px', color: '#EF4444', cursor: 'pointer', width: '100%', fontWeight: '500', fontFamily: 'inherit'

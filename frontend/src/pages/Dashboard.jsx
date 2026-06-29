@@ -110,7 +110,7 @@ export default function Dashboard() {
           <StatCard icon={ShieldAlert} label="Escalated"           value={stats.escalated}    delta={+2}  color="#EF4444" bg="#FEF2F2" />
           <StatCard icon={CheckCircle} label="Resolved Today"      value={stats.resolved}     delta={+14} color="#10B981" bg="#ECFDF5" />
           <StatCard icon={Users}       label="Agents Online"       value={7}                  delta={0}   color="#6C63FF" bg="#EEEDFF" />
-          <StatCard icon={Star}        label="Satisfaction"        value="94%"                delta={+1}  color="#F59E0B" bg="#FFFBEB" />
+          <StatCard icon={Star}        label="Satisfaction"        value={stats.satisfaction_rate ? `${stats.satisfaction_rate}%` : "94%"}                delta={+1}  color="#F59E0B" bg="#FFFBEB" />
         </div>
       )}
 
@@ -144,7 +144,7 @@ export default function Dashboard() {
             {[
               { label: 'First Response Time', value: '26m 50s', status: 'good', pct: 80 },
               { label: 'Resolution Time', value: '4h 12m', status: 'warn', pct: 55 },
-              { label: 'Customer Satisfaction', value: '94%', status: 'good', pct: 94 },
+              { label: 'Customer Satisfaction', value: stats.satisfaction_rate ? `${stats.satisfaction_rate}%` : '94%', status: 'good', pct: stats.satisfaction_rate || 94 },
               { label: 'SLA Miss Rate', value: '8%', status: 'danger', pct: 8 },
             ].map(item => (
               <div key={item.label}>

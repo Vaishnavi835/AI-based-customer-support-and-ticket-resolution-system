@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
 from datetime import datetime
-from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign, TicketReassign, TicketUpdateCC
+from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign, TicketReassign, TicketUpdateCC, Status
 from app.services.ticket_service import (
     create_ticket,
     get_ticket_by_id,
@@ -174,13 +174,30 @@ async def get_ticket_route(
 async def update_ticket_route(
     ticket_id: str,
     updates:   TicketUpdate,
-    current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
+    current_user: dict = Depends(get_current_user),
 ):
     """
-    Update ticket status or priority. Admin and Support Agent only.
-    Status changes are validated against allowed lifecycle transitions.
-    All changes are recorded in ticket history.
+    Update ticket status, priority or rating.
+    - Admin/Agent — any ticket.
+    - Customer — own tickets only, status can only be resolved/open.
     """
+    role = current_user.get("role")
+    
+    if role == Role.customer:
+        # Fetch ticket to verify ownership
+        ticket = await get_ticket_by_id(ticket_id)
+        if ticket["user_id"] != current_user["id"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied. You can only update your own tickets."
+            )
+        
+        # Customers can update status (resolved/open) and rating (1-5)
+        if updates.priority is not None:
+            raise HTTPException(status_code=403, detail="Customers cannot update ticket priority.")
+        if updates.status is not None and updates.status not in [Status.resolved, Status.open]:
+            raise HTTPException(status_code=400, detail="Customers can only resolve or reopen tickets.")
+            
     return await update_ticket(
         ticket_id=ticket_id,
         updates=updates,

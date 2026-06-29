@@ -8,6 +8,7 @@ VALID_CATEGORIES = [
     "authentication",
     "technical",
     "account",
+    "finance",
     "general",
 ]
 

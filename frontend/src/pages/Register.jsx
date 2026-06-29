@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Eye, EyeOff, Sparkles, Check } from "lucide-react";
+import { useToast } from "../context/ToastContext";
 
 /**
  * AIWorkflowVisualizer
@@ -212,6 +213,7 @@ export default function Register() {
 
   const { register } = useAuth();
   const navigate     = useNavigate();
+  const toast        = useToast();
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   
@@ -286,16 +288,18 @@ export default function Register() {
 
     try {
       await register(name, email, password, role);
+      toast.success("Successfully registered! Welcome to AI Support.");
       navigate("/");
     } catch (err) {
       const detail = err.response?.data?.detail;
+      let msg = "Registration failed. Please try again.";
       if (Array.isArray(detail)) {
-        setError(detail.map((d) => d.msg).join(", "));
+        msg = detail.map((d) => d.msg).join(", ");
       } else if (typeof detail === "string") {
-        setError(detail);
-      } else {
-        setError("Registration failed. Please try again.");
+        msg = detail;
       }
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

@@ -116,7 +116,7 @@ async def ask_rag(
     relevant_docs = await search_knowledge_base(data.question, top_k=data.top_k)
 
     # Generate RAG answer
-    answer = await generate_rag_response(
+    answer, _ = await generate_rag_response(
         question=data.question,
         ticket_context=ticket_context,
     )
@@ -176,7 +176,7 @@ async def get_knowledge_doc(
     current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
 ):
     """Get a single KB document by ID (reads from MongoDB, includes timestamps)."""
-    return await get_kb_doc_by_id(doc_id)
+    doc = await get_kb_doc_by_id(doc_id)
     
     if not doc:
         raise HTTPException(

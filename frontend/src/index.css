@@ -295,6 +295,7 @@ a:hover { text-decoration: underline; }
   font-weight: 600;
   padding-left: 24px;
 }
+
 .zd-panel__link.active::after {
   transform: translateX(-100%); /* Let parent handle background */
 }
@@ -5305,12 +5306,13 @@ tr.clickable-row:hover td {
   background-color: #F8FAFC !important;
 }
 .rich-ticket-card {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
+  cursor: pointer !important;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease !important;
 }
 .rich-ticket-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-lg) !important;
-  border-color: var(--color-primary) !important;
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.12), 0 8px 16px rgba(99, 102, 241, 0.06) !important;
+  border-color: #6366F1 !important;
 }
 .cd-btn {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
@@ -5405,7 +5407,7 @@ tr.clickable-row:hover td {
     var(--color-bg, #f1f5f9) 63%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.4s ease-infinite;
+  animation: shimmer 1.4s ease infinite;
 }
 
 .skeleton-block {
@@ -5549,44 +5551,54 @@ tr.clickable-row:hover td {
 }
 .zd-shell.customer-sidebar .zd-panel {
   width: 100% !important;
-  background: #ffffff !important;
-  border-right: 1px solid #E2E8F0 !important;
+  background: #1F2937 !important; /* Premium dark grey background */
+  border-right: 1px solid #374151 !important;
+}
+.zd-shell.customer-sidebar .zd-panel__brand.customer-brand {
+  border-bottom: 1px solid #374151 !important;
+}
+.zd-shell.customer-sidebar .zd-panel__brand.customer-brand span {
+  color: #F9FAFB !important;
+}
+.zd-shell.customer-sidebar .zd-panel__brand.customer-brand .customer-logo-mark {
+  background: #374151 !important;
+  color: #FBBF24 !important;
 }
 .zd-shell.customer-sidebar .zd-panel__section-label {
-  color: #94A3B8 !important;
+  color: #6B7280 !important;
   font-size: 11px !important;
   font-weight: 700 !important;
   letter-spacing: 0.05em !important;
 }
 .zd-shell.customer-sidebar .zd-panel__link {
-  color: #64748B !important;
+  color: #9CA3AF !important;
   font-weight: 500 !important;
   padding: 12px 20px !important;
   transition: all 0.2s ease !important;
 }
 .zd-shell.customer-sidebar .zd-panel__link svg {
-  color: #94A3B8 !important;
+  color: #6B7280 !important;
   transition: color 0.2s ease !important;
 }
 .zd-shell.customer-sidebar .zd-panel__link:hover {
-  color: #0F172A !important;
-  background: #F8FAFC !important;
+  color: #F9FAFB !important;
+  background: rgba(255, 255, 255, 0.05) !important;
   padding-left: 20px !important;
 }
 .zd-shell.customer-sidebar .zd-panel__link:hover svg {
-  color: #64748B !important;
+  color: #9CA3AF !important;
 }
 .zd-shell.customer-sidebar .zd-panel__link.active {
-  color: #8A6200 !important;
+  color: #FBBF24 !important; /* Gold active text */
   font-weight: 600 !important;
-  background: #FAF5EA !important;
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 .zd-shell.customer-sidebar .zd-panel__link.active svg {
-  color: #8A6200 !important;
+  color: #FBBF24 !important;
 }
 .zd-shell.customer-sidebar .zd-panel__indicator {
-  background: #FAF5EA !important;
-  border-left: 3px solid #8A6200 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-left: 3px solid #FBBF24 !important;
 }
 
 /* ── Quick Actions and Stats overrides ─────────────────────────────── */
@@ -5595,6 +5607,15 @@ tr.clickable-row:hover td {
 }
 .quick-action-row:hover {
   background-color: #F8FAFC !important;
+}
+
+.hover-lift-card {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s, border-color 0.25s !important;
+}
+.hover-lift-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 12px 24px -10px rgba(15, 23, 42, 0.12) !important;
+  border-color: #CBD5E1 !important;
 }
 
 /* Stack stat card contents vertically */
@@ -6286,3 +6307,60 @@ tr.clickable-row:hover td {
   flex-direction: column;
   gap: 20px;
 }
+
+/* ── Support Radar Visualizer ───────────────────────────────── */
+@keyframes sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radar-pulse {
+  0% {
+    r: 3px;
+    opacity: 0.4;
+  }
+  50% {
+    r: 6px;
+    opacity: 1;
+  }
+  100% {
+    r: 3px;
+    opacity: 0.4;
+  }
+}
+
+.radar-sweep-line {
+  transform-origin: 100px 100px;
+  animation: sweep 4s linear infinite;
+}
+
+.radar-orbit-group {
+  transform-origin: 100px 100px;
+  animation: orbit 24s linear infinite;
+}
+
+.radar-blip-dot {
+  animation: radar-pulse 2s ease-in-out infinite alternate;
+}
+
+.radar-blip-dot:hover {
+  r: 8px;
+  opacity: 1;
+  stroke: #ffffff;
+  stroke-width: 1.5px;
+  cursor: pointer;
+}
+
