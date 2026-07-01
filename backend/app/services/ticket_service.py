@@ -143,6 +143,13 @@ async def get_ticket_by_id(ticket_id: str) -> dict:
     if chat and "messages" in chat and len(chat["messages"]) > 0:
         ticket["ai_replied"] = any(msg.get("response") for msg in chat["messages"])
 
+    # Resolve assigned agent name for the frontend
+    if ticket.get("assigned_to"):
+        users_col = get_db().users_col
+        agent = await users_col.find_one({"_id": ticket["assigned_to"]})
+        if agent:
+            ticket["assigned_agent_name"] = agent.get("name")
+
     return ticket
 
 
