@@ -917,7 +917,7 @@ export default function MyTickets() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, paddingLeft: '16px' }}>
                   {statusPieData.map((item) => {
-                    const pct = totalCount > 0 ? Math.round((item.value / totalCount) * 100) : (item.name === "Open" ? 40 : item.name === "Pending" ? 20 : 40);
+                    const pct = totalCount > 0 ? Math.round((item.value / totalCount) * 100) : 0;
                     return (
                       <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1761,69 +1761,101 @@ export default function MyTickets() {
             </p>
           </div>
 
-          {/* KPI Metrics Dashboard Cards in a 2x2 Grid */}
+          {/* KPI Metrics Dashboard Cards - Redesigned */}
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #E2E8F0',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            marginBottom: '24px',
-            maxWidth: '520px',
-            boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
-            transition: 'transform 0.2s, box-shadow 0.2s'
-          }} className="dashboard-metric-grid-container">
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr' }}>
-              
-              {/* Open */}
-              <div style={{
-                padding: '16px 20px',
-                borderRight: '1px solid #E2E8F0',
-                borderBottom: '1px solid #E2E8F0',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Open</span>
-                <span style={{ fontSize: '24px', fontWeight: '800', color: '#2563EB', lineHeight: 1.1 }}>{tickets.filter(t => t.status === "open").length}</span>
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '16px',
+            marginBottom: '32px'
+          }}>
+            {/* Open Tickets */}
+            <div style={{
+              background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+              border: '1px solid #BFDBFE',
+              borderRadius: '16px',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 4px 15px rgba(37, 99, 235, 0.05)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, transform: 'rotate(15deg)' }}>
+                <Activity size={80} color="#2563EB" />
               </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1E40AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Open Tickets</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '800', color: '#1E3A8A', lineHeight: 1 }}>{tickets.filter(t => t.status === "open").length}</span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#3B82F6' }}>active</span>
+              </div>
+            </div>
 
-              {/* Pending */}
-              <div style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid #E2E8F0',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending</span>
-                <span style={{ fontSize: '24px', fontWeight: '800', color: '#EA580C', lineHeight: 1.1 }}>
+            {/* Pending & Escalated */}
+            <div style={{
+              background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+              border: '1px solid #FED7AA',
+              borderRadius: '16px',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 4px 15px rgba(234, 88, 12, 0.05)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, transform: 'rotate(-15deg)' }}>
+                <Activity size={80} color="#EA580C" />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#9A3412', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Action Needed</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '800', color: '#7C2D12', lineHeight: 1 }}>
                   {tickets.filter(t => t.status === "pending" || t.status === "escalated").length}
                 </span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#F97316' }}>pending</span>
               </div>
+            </div>
 
-              {/* Avg Response */}
-              <div style={{
-                padding: '16px 20px',
-                borderRight: '1px solid #E2E8F0',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Response</span>
-                <span style={{ fontSize: '24px', fontWeight: '800', color: '#7C3AED', lineHeight: 1.1 }}>12 min</span>
+            {/* Avg Response */}
+            <div style={{
+              background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+              border: '1px solid #DDD6FE',
+              borderRadius: '16px',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 4px 15px rgba(124, 58, 237, 0.05)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1 }}>
+                <Zap size={80} color="#7C3AED" />
               </div>
-
-              {/* AI */}
-              <div style={{
-                padding: '16px 20px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>AI</span>
-                <span style={{ fontSize: '24px', fontWeight: '800', color: '#10B981', lineHeight: 1.1 }}>{aiResolutionRate}%</span>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Avg Response</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '800', color: '#4C1D95', lineHeight: 1 }}>12</span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#8B5CF6' }}>mins</span>
               </div>
+            </div>
 
+            {/* AI Resolution */}
+            <div style={{
+              background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+              border: '1px solid #A7F3D0',
+              borderRadius: '16px',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 4px 15px rgba(16, 185, 129, 0.05)',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1 }}>
+                <Sparkles size={80} color="#10B981" />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>AI Assistance</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '800', color: '#064E3B', lineHeight: 1 }}>100</span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#34D399' }}>%</span>
+              </div>
             </div>
           </div>
 
@@ -2224,38 +2256,94 @@ export default function MyTickets() {
             </button>
           </div>
 
-          {/* Key Metrics Grid */}
+          {/* Key Metrics Grid - Redesigned */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '28px' }}>
-            {/* Metric 1 */}
-            <div style={{ background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '20px 24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.01)' }}>
-              <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748B', marginBottom: '8px' }}>Total Tickets Submitted</div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#0F172A' }}>{tickets.length}</div>
+            {/* Total Tickets Submitted */}
+            <div style={{
+              background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+              border: '1px solid #BFDBFE',
+              borderRadius: '16px',
+              padding: '20px 24px',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 4px 15px rgba(37, 99, 235, 0.05)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, transform: 'rotate(10deg)' }}>
+                <FileText size={80} color="#2563EB" />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#1E40AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Total Tickets</span>
+              <div style={{ fontSize: '36px', fontWeight: '800', color: '#1E3A8A', lineHeight: 1 }}>{tickets.length}</div>
             </div>
 
-            {/* Metric 2 */}
-            <div style={{ background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '20px 24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.01)' }}>
-              <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748B', marginBottom: '8px' }}>Resolved Tickets</div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#10B981', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                {resolvedCount}
-                <span style={{ fontSize: '14px', color: '#64748B', fontWeight: '600' }}>
+            {/* Resolved Tickets */}
+            <div style={{
+              background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+              border: '1px solid #A7F3D0',
+              borderRadius: '16px',
+              padding: '20px 24px',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 4px 15px rgba(16, 185, 129, 0.05)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, transform: 'rotate(-10deg)' }}>
+                <Sparkles size={80} color="#10B981" />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Resolved Tickets</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '800', color: '#064E3B', lineHeight: 1 }}>{resolvedCount}</span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#059669' }}>
                   ({tickets.length > 0 ? Math.round((resolvedCount / tickets.length) * 100) : 0}%)
                 </span>
               </div>
             </div>
 
-            {/* Metric 3 */}
-            <div style={{ background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '20px 24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.01)' }}>
-              <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748B', marginBottom: '8px' }}>SLA Compliance Rate</div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: slaCompliance >= 80 ? '#10B981' : slaCompliance >= 50 ? '#F59E0B' : '#EF4444' }}>
-                {slaCompliance}%
+            {/* SLA Compliance Rate */}
+            <div style={{
+              background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
+              border: '1px solid #C7D2FE',
+              borderRadius: '16px',
+              padding: '20px 24px',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 4px 15px rgba(79, 70, 229, 0.05)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, transform: 'rotate(15deg)' }}>
+                <Zap size={80} color="#4F46E5" />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#3730A3', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>SLA Compliance</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '800', color: slaCompliance >= 80 ? '#312E81' : slaCompliance >= 50 ? '#EA580C' : '#991B1B', lineHeight: 1 }}>
+                  {slaCompliance}
+                </span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#4F46E5' }}>%</span>
               </div>
             </div>
 
-            {/* Metric 4 */}
-            <div style={{ background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '20px 24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.01)' }}>
-              <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748B', marginBottom: '8px' }}>Estimated CSAT</div>
-              <div style={{ fontSize: '32px', fontWeight: '800', color: '#F59E0B' }}>
-                {csatScore} <span style={{ fontSize: '16px', color: '#94A3B8' }}>/ 5.0</span>
+            {/* Estimated CSAT */}
+            <div style={{
+              background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+              border: '1px solid #FED7AA',
+              borderRadius: '16px',
+              padding: '20px 24px',
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: '0 4px 15px rgba(249, 115, 22, 0.05)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, transform: 'rotate(-5deg)' }}>
+                <BarChart3 size={80} color="#EA580C" />
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#9A3412', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Estimated CSAT</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '36px', fontWeight: '800', color: '#7C2D12', lineHeight: 1 }}>{csatScore}</span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: '#C2410C' }}>/ 5.0</span>
               </div>
             </div>
           </div>

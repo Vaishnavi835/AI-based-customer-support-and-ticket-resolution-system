@@ -1165,7 +1165,16 @@ export default function TicketDetail() {
           {/* Section: Support Agent Info (When escalated / active) */}
           {(ticket.status === 'escalated' || (chats.length > 0 && chats[0].agent_id)) && (() => {
             const assignedAgentId = ticket.assigned_to || (chats.length > 0 ? chats[0].agent_id : null);
-            const assignedAgent = assignedAgentId ? agents.find(a => a.id === assignedAgentId) : null;
+            let assignedAgent = assignedAgentId ? agents.find(a => a.id === assignedAgentId) : null;
+            
+            // If the user is a customer (agents array is empty) but there is an assigned ID, show generic agent info
+            if (assignedAgentId && !assignedAgent) {
+              assignedAgent = { 
+                id: assignedAgentId, 
+                name: ticket.assigned_agent_name || "Support Agent", 
+                role: "support_agent" 
+              };
+            }
             
             return (
               <div className="td-dp-section">
@@ -1211,73 +1220,6 @@ export default function TicketDetail() {
             );
           })()}
 
-          {/* Section: AI Suggested Resolution (agents/admins only) */}
-          {user.role !== 'customer' && (
-            <div className="td-dp-section" style={{
-              background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)',
-              border: '1.5px solid #E9D5FF',
-              borderRadius: '12px',
-              padding: '16px 20px',
-              boxShadow: '0 4px 12px rgba(139, 92, 246, 0.05)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              marginBottom: '20px'
-            }}>
-              <h3 className="td-dp-section__title" style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#6B21A8', border: 'none', padding: 0, margin: 0 }}>
-                <Sparkles size={15} style={{ color: '#8B5CF6' }} />
-                AI Suggested Resolution
-              </h3>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                {getResolutionSteps(ticket.category).map((step, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12.5px', color: '#4C1D95', lineHeight: '1.4' }}>
-                    <span style={{ color: (ticket.status === 'resolved' || ticket.status === 'closed') ? '#10B981' : '#8B5CF6', fontWeight: 'bold', fontSize: '13px', flexShrink: 0 }}>
-                      {(ticket.status === 'resolved' || ticket.status === 'closed') ? '✓' : '•'}
-                    </span>
-                    <span style={{ textDecoration: (ticket.status === 'resolved' || ticket.status === 'closed') ? 'line-through' : 'none', opacity: (ticket.status === 'resolved' || ticket.status === 'closed') ? 0.7 : 1 }}>
-                      {step}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={handleApplyResolution}
-                disabled={ticket.status === 'resolved' || ticket.status === 'closed'}
-                style={{
-                  width: '100%',
-                  marginTop: '6px',
-                  background: (ticket.status === 'resolved' || ticket.status === 'closed') ? '#E2E8F0' : '#8B5CF6',
-                  color: (ticket.status === 'resolved' || ticket.status === 'closed') ? '#94A3B8' : '#ffffff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '10px 14px',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  cursor: (ticket.status === 'resolved' || ticket.status === 'closed') ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  transition: 'background 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  if (ticket.status !== 'resolved' && ticket.status !== 'closed') {
-                    e.currentTarget.style.background = '#7C3AED';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (ticket.status !== 'resolved' && ticket.status !== 'closed') {
-                    e.currentTarget.style.background = '#8B5CF6';
-                  }
-                }}
-              >
-                <CheckCircle size={14} />
-                {(ticket.status === 'resolved' || ticket.status === 'closed') ? 'Resolution Applied' : 'Apply Resolution'}
-              </button>
-            </div>
-          )}
 
           {/* Section: Internal Notes (agents only) */}
           {user.role !== 'customer' && (

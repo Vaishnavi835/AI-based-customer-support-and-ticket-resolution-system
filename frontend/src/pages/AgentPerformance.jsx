@@ -11,11 +11,16 @@ import { CheckCircle2, Clock, ThumbsUp, RotateCcw, Award, RefreshCw } from "luci
 
 /** Format a duration in minutes to a readable string like "2.4m" or "1h 3m" */
 function fmtMinutes(mins) {
-  if (!mins || isNaN(mins)) return "—";
+  if (mins == null || isNaN(mins)) return "—";
   if (mins < 60) return `${mins.toFixed(1)}m`;
-  const h = Math.floor(mins / 60);
+  const totalH = Math.floor(mins / 60);
   const m = Math.round(mins % 60);
-  return `${h}h ${m}m`;
+  if (totalH >= 24) {
+    const d = Math.floor(totalH / 24);
+    const h = totalH % 24;
+    return `${d}d ${h}h`;
+  }
+  return `${totalH}h ${m}m`;
 }
 
 

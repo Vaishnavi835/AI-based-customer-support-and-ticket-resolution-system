@@ -53,7 +53,7 @@ export default function Sidebar({ collapsed }) {
         { icon: LayoutDashboard, to: '/agent-dashboard', label: 'Dashboard' },
         { icon: Inbox, to: '/agent/my-queue', label: 'My Queue' },
         { icon: Ticket, to: '/tickets', label: 'All Tickets' },
-        { icon: Sparkles, to: '/agent/ai-suggested', label: 'AI Suggested' },
+
         { icon: Users, to: '/agent/customers', label: 'Customers' },
         { icon: BookOpen, to: '/knowledge-base', label: 'Knowledge Base' },
         { icon: BarChart3, to: '/reports', label: 'Reports' },
@@ -239,13 +239,7 @@ export default function Sidebar({ collapsed }) {
               <Ticket size={16} /> All Tickets
             </NavLink>
             
-            <NavLink to="/agent/ai-suggested" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
-              <Sparkles size={16} /> AI Suggested Tickets
-            </NavLink>
-            
-            <NavLink to="/agent/priority-queue" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
-              <AlertTriangle size={16} /> Priority Queue
-            </NavLink>
+
             
             <NavLink to="/escalations" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
               <ShieldAlert size={16} /> Escalated Tickets

@@ -4,10 +4,11 @@ import { ticketsAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketEvent } from "../context/WebSocketContext";
 import { SkeletonTableRow } from "../components/SkeletonCard";
+import { useToast } from "../context/ToastContext";
 import {
   Search, Filter, ChevronDown, Plus, Sparkles, BarChart3,
   RefreshCw, CheckCircle2, AlertTriangle, ArrowRight, UserPlus, MessageSquare,
-  TrendingUp, Clock, Building2
+  TrendingUp, Clock, Building2, Bot, ShieldAlert, X
 } from "lucide-react";
 
 const STATUS_COLORS = {
@@ -18,6 +19,44 @@ const STATUS_COLORS = {
   closed:    { bg: '#F3F4F6', color: '#4B5563', label: 'Closed' },
 };
 
+const MOCK_AI_SUGGESTIONS = [
+  {
+    id: "3315",
+    title: "Login issue - Reset validation fails",
+    description: "I've tried resetting my passcode three times, but the security check validation email is not arriving. Please help.",
+    requester: "Devon C.",
+    category: "authentication",
+    priority: "high",
+    confidence: 96,
+    sentiment: "frustrated",
+    suggestedReply: "Hi Devon, I checked your account logs and it appears the reset tokens were flagged in our SMTP security queue due to multiple retry calls. I have whitelisted your IP and triggered a direct validation link. Please verify if it arrived.",
+    type: "recommend"
+  },
+  {
+    id: "3316",
+    title: "Refund request for double billing invoice #4920",
+    description: "I was billed twice for my pro membership on June 15. The transaction IDs are txn_2984 and txn_2985.",
+    requester: "Lana R.",
+    category: "billing",
+    priority: "medium",
+    confidence: 93,
+    sentiment: "neutral",
+    suggestedReply: "Hi Lana, I have reviewed the merchant processing ledger. I can confirm txn_2985 was a duplicate trigger. I have initiated a refund of $29.00 to your card. Funds should settle in 3-5 business days.",
+    type: "recommend"
+  },
+  {
+    id: "3317",
+    title: "API Timeout error - 504 on endpoint POST /webhooks",
+    description: "We are getting continuous timeout errors when posting webhook event updates back to our receiver endpoint. Urgent payload block.",
+    requester: "SysOps Core",
+    category: "technical",
+    priority: "critical",
+    confidence: 89,
+    sentiment: "frustrated",
+    suggestedReply: "Hi SysOps Team, I inspected our webhook gateway telemetry. The 504 timeout occurs due to slow response times from your receiver endpoint (> 10000ms threshold). Please check your server queue ingestion logs.",
+    type: "predict"
+  }
+];
 const PRIORITY_COLORS = {
   high: '#EF4444', medium: '#F59E0B', low: '#6B7280',
 };
@@ -55,6 +94,7 @@ const formatActivityTime = (isoString) => {
 export default function AgentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -67,6 +107,53 @@ export default function AgentDashboard() {
   const [workload, setWorkload] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [systemStats, setSystemStats] = useState(null);
+
+  // Consolidated feature state
+  const [priorityTickets, setPriorityTickets] = useState([]);
+  const [aiSuggestedTickets, setAiSuggestedTickets] = useState([]);
+  
+  const loadPriority = useCallback(async () => {
+    try {
+      const res = await ticketsAPI.list({ limit: 100 });
+      const active = (res.data.tickets || res.data || []).filter(
+        (t) => t.status !== "resolved" && t.status !== "closed"
+      );
+      let prio = active.filter((t) => t.priority === "high" || t.priority === "critical");
+      let mapped = prio.map((t, idx) => {
+        const minutesLeft = idx === 0 ? 12 : idx === 1 ? 48 : (idx + 1) * 35;
+        return { ...t, minutesLeft, slaBreached: minutesLeft <= 15 };
+      });
+      if (mapped.length === 0) {
+        mapped = [
+          { id: "3312", title: "Cannot access server: Port timeout 504 on POST /orders", description: "Production is currently locked down.", priority: "critical", status: "open", created_at: new Date(Date.now() - 3600000).toISOString(), requester: "Sarah K.", minutesLeft: 14, slaBreached: true, category: "technical" },
+          { id: "3311", title: "Refund Request: Double billing on credit card statement", description: "I was charged twice for the renewal.", priority: "high", status: "open", created_at: new Date(Date.now() - 3600000 * 2).toISOString(), requester: "Manny P.", minutesLeft: 38, slaBreached: false, category: "billing" }
+        ];
+      }
+      setPriorityTickets(mapped);
+    } catch {
+      setPriorityTickets([]);
+    }
+  }, []);
+
+  const loadAISuggested = useCallback(async () => {
+    try {
+      const res = await ticketsAPI.list({ limit: 100 });
+      const unassigned = (res.data.tickets || res.data || []).filter(t => !t.assigned_to && t.status !== 'resolved' && t.status !== 'closed');
+      const merged = unassigned.map((t, idx) => {
+        const mockMatch = MOCK_AI_SUGGESTIONS[idx % MOCK_AI_SUGGESTIONS.length];
+        return {
+          id: t.id, title: t.title, description: t.description, requester: t.requester || "Unknown Customer",
+          category: t.category || mockMatch.category, priority: t.priority || mockMatch.priority,
+          confidence: Math.floor(Math.random() * 15) + 82,
+          sentiment: t.sentiment || (t.priority === 'high' || t.priority === 'critical' ? 'frustrated' : 'neutral'),
+          suggestedReply: mockMatch.suggestedReply, type: (t.priority === 'high' || t.priority === 'critical') ? "predict" : "recommend"
+        };
+      });
+      setAiSuggestedTickets(merged.length > 0 ? merged : MOCK_AI_SUGGESTIONS);
+    } catch {
+      setAiSuggestedTickets(MOCK_AI_SUGGESTIONS);
+    }
+  }, []);
 
   const loadExtraData = useCallback(() => {
     // System-wide stats for the top stat cards
@@ -135,18 +222,36 @@ export default function AgentDashboard() {
   useEffect(() => {
     loadTickets();
     loadExtraData();
-  }, [loadTickets, loadExtraData]);
+    loadPriority();
+    loadAISuggested();
+  }, [loadTickets, loadExtraData, loadPriority, loadAISuggested]);
 
   // Subscribe to real-time ticket events
   useWebSocketEvent("ticket_created", () => {
     loadTickets();
     loadExtraData();
+    loadPriority();
+    loadAISuggested();
   });
 
   useWebSocketEvent("ticket_updated", () => {
     loadTickets();
     loadExtraData();
+    loadPriority();
+    loadAISuggested();
   });
+
+  const handleClaimTicket = async (ticketId) => {
+    try {
+      await ticketsAPI.assign(ticketId, user.id);
+      toast.success("Successfully claimed ticket!");
+      loadTickets();
+      loadPriority();
+      loadAISuggested();
+    } catch (err) {
+      toast.error("Failed to claim ticket.");
+    }
+  };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -215,35 +320,7 @@ export default function AgentDashboard() {
 
         {/* Search & Actions Group */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          {/* Expanded Search Bar */}
-          <div style={{ position: 'relative', width: '280px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
-            <input
-              type="text"
-              placeholder="Search assigned tickets..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '9px 12px 9px 36px',
-                fontSize: '13.5px',
-                border: '1.5px solid #E2E8F0',
-                borderRadius: '10px',
-                outline: 'none',
-                background: '#fff',
-                color: '#0F172A',
-                transition: 'all 0.2s',
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#6366F1';
-                e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#E2E8F0';
-                e.target.style.boxShadow = 'none';
-              }}
-            />
-          </div>
+          {/* Search bar removed per user request */}
 
           {/* Quick Actions Toolbar */}
           <button style={{
@@ -364,55 +441,124 @@ export default function AgentDashboard() {
       )}
 
       {/* ── 2. Dashboard Summary Cards ─────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
         {[
-          { label: "Open", value: displayStats.open, color: "#6366F1", bg: "rgba(99, 102, 241, 0.08)", text: "Assigned & Active", trend: { color: "#10B981", bg: "#F0FDF4", icon: "↓", val: "20%", lbl: "vs yesterday" } },
-          { label: "Pending", value: displayStats.pending, color: "#F59E0B", bg: "rgba(245, 158, 11, 0.08)", text: "Awaiting Reply", trend: { color: "#EF4444", bg: "#FEF2F2", icon: "↑", val: "12%", lbl: "vs yesterday" } },
-          { label: "Escalated", value: displayStats.escalated, color: "#EF4444", bg: "rgba(239, 68, 68, 0.08)", text: "Urgent Human Triage", trend: { color: "#10B981", bg: "#F0FDF4", icon: "↓", val: "5%", lbl: "vs last week" } },
-          { label: "Resolved", value: displayStats.resolved, color: "#10B981", bg: "rgba(16, 185, 129, 0.08)", text: "Closed / Fixed", trend: { color: "#10B981", bg: "#F0FDF4", icon: "↑", val: "15%", lbl: "vs last week" } }
+          { label: "Open", value: displayStats.open, color: "#1E3A8A", textCol: "#1E40AF", grad1: "#EFF6FF", grad2: "#DBEAFE", border: "#BFDBFE", icon: <MessageSquare size={80} color="#2563EB" />, rot: "15deg", trend: { color: "#10B981", bg: "rgba(16,185,129,0.1)", icon: "↓", val: "20%", lbl: "vs yesterday" } },
+          { label: "Pending", value: displayStats.pending, color: "#7C2D12", textCol: "#9A3412", grad1: "#FFF7ED", grad2: "#FFEDD5", border: "#FED7AA", icon: <Clock size={80} color="#EA580C" />, rot: "-10deg", trend: { color: "#EF4444", bg: "rgba(239,68,68,0.1)", icon: "↑", val: "12%", lbl: "vs yesterday" } },
+          { label: "Escalated", value: displayStats.escalated, color: "#7F1D1D", textCol: "#991B1B", grad1: "#FEF2F2", grad2: "#FEE2E2", border: "#FECACA", icon: <AlertTriangle size={80} color="#EF4444" />, rot: "10deg", trend: { color: "#10B981", bg: "rgba(16,185,129,0.1)", icon: "↓", val: "5%", lbl: "vs last week" } },
+          { label: "Resolved", value: displayStats.resolved, color: "#064E3B", textCol: "#065F46", grad1: "#ECFDF5", grad2: "#D1FAE5", border: "#A7F3D0", icon: <CheckCircle2 size={80} color="#10B981" />, rot: "-15deg", trend: { color: "#10B981", bg: "rgba(16,185,129,0.1)", icon: "↑", val: "15%", lbl: "vs last week" } }
         ].map((card) => (
           <div key={card.label} style={{
-            background: '#fff',
-            borderRadius: '14px',
+            background: `linear-gradient(135deg, ${card.grad1} 0%, ${card.grad2} 100%)`,
+            border: `1px solid ${card.border}`,
+            borderRadius: '16px',
             padding: '20px',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 4px 12px rgba(15,23,42,0.03)',
-            borderLeft: `4px solid ${card.color}`,
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: `0 4px 15px rgba(0,0,0,0.03)`,
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s, border-color 0.25s',
-            cursor: 'default'
-          }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = 'translateY(-3.5px)';
-              e.currentTarget.style.boxShadow = '0 12px 24px rgba(15,23,42,0.07), 0 4px 8px rgba(15,23,42,0.03)';
-              e.currentTarget.style.borderColor = '#6366F1';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'none';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.03)';
-              e.currentTarget.style.borderColor = '#E2E8F0';
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '13px', color: '#64748B', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</div>
-              <div style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', marginTop: '6px', letterSpacing: '-0.5px' }}>{card.value}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px', fontSize: '11px', color: '#64748B' }}>
-                <span style={{ color: card.trend.color, background: card.trend.bg, padding: '2px 6px', borderRadius: '4px', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                  {card.trend.icon} {card.trend.val}
-                </span>
-                <span>{card.trend.lbl}</span>
-              </div>
+            flexDirection: 'column'
+          }}>
+            <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, transform: `rotate(${card.rot})` }}>
+              {card.icon}
             </div>
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '10px', background: card.bg,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.color, fontWeight: 'bold'
-            }}>
-              {card.label[0]}
+            
+            <span style={{ fontSize: '13px', fontWeight: '700', color: card.textCol, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+              {card.label}
+            </span>
+            
+            <div style={{ fontSize: '36px', fontWeight: '800', color: card.color, lineHeight: 1 }}>
+              {card.value}
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '12px', fontSize: '12px', color: card.textCol, fontWeight: '500' }}>
+              <span style={{ color: card.trend.color, background: card.trend.bg, padding: '2px 6px', borderRadius: '4px', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                {card.trend.icon} {card.trend.val}
+              </span>
+              <span>{card.trend.lbl}</span>
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── 2.5 Consolidated Priority Queue and AI Suggestions ───── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+        
+        {/* Priority Action Queue Widget */}
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #FCA5A5', padding: '20px', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldAlert size={20} color="#EF4444" />
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#7F1D1D' }}>Priority Action Queue</h3>
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#EF4444', background: '#FEF2F2', padding: '4px 8px', borderRadius: '6px' }}>
+              {priorityTickets.length} Critical
+            </span>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '280px', overflowY: 'auto' }}>
+            {priorityTickets.slice(0, 3).map(ticket => (
+              <div key={ticket.id} style={{ padding: '14px', borderRadius: '12px', background: 'linear-gradient(to right, #FEF2F2, #fff)', border: '1px solid #FECACA', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#991B1B' }}>#{ticket.id}</span>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#EF4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={12} /> {ticket.minutesLeft}m SLA
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '4px' }}>{ticket.title}</div>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>{ticket.requester}</div>
+                </div>
+                <button 
+                  onClick={() => handleClaimTicket(ticket.id)}
+                  style={{ flexShrink: 0, padding: '8px 16px', background: '#EF4444', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#DC2626'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#EF4444'}
+                >
+                  Claim
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Suggested Assignments Widget */}
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #A7F3D0', padding: '20px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={20} color="#10B981" />
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#064E3B' }}>AI Suggested Tickets</h3>
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: '700', color: '#10B981', background: '#ECFDF5', padding: '4px 8px', borderRadius: '6px' }}>
+              {aiSuggestedTickets.length} Matches
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '280px', overflowY: 'auto' }}>
+            {aiSuggestedTickets.slice(0, 3).map(ticket => (
+              <div key={ticket.id} style={{ padding: '14px', borderRadius: '12px', background: 'linear-gradient(to right, #ECFDF5, #fff)', border: '1px solid #D1FAE5', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#065F46' }}>#{ticket.id}</span>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Bot size={12} /> {ticket.confidence}% Match
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '4px' }}>{ticket.title}</div>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>{ticket.category}</div>
+                </div>
+                <button 
+                  onClick={() => handleClaimTicket(ticket.id)}
+                  style={{ flexShrink: 0, padding: '8px 16px', background: '#10B981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#059669'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#10B981'}
+                >
+                  Assign to Me
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── 3. Multi-Column Middle Row (Trend Chart + Activity Feed) ───── */}

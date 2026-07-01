@@ -42,8 +42,6 @@ import TicketStatistics from "./pages/TicketStatistics";
 
 // New Agent pages
 import MyQueue from "./pages/MyQueue";
-import AISuggestedTickets from "./pages/AISuggestedTickets";
-import PriorityQueue from "./pages/PriorityQueue";
 import Customers from "./pages/Customers";
 import Conversations from "./pages/Conversations";
 import AIAssistant from "./pages/AIAssistant";
@@ -207,17 +205,7 @@ function AppRoutes() {
             </ProtectedRoute>
           } />
 
-          <Route path="/agent/ai-suggested" element={
-            <ProtectedRoute roles={["admin", "support_agent"]}>
-              <AISuggestedTickets />
-            </ProtectedRoute>
-          } />
 
-          <Route path="/agent/priority-queue" element={
-            <ProtectedRoute roles={["admin", "support_agent"]}>
-              <PriorityQueue />
-            </ProtectedRoute>
-          } />
 
           <Route path="/agent/customers" element={
             <ProtectedRoute roles={["admin", "support_agent"]}>
