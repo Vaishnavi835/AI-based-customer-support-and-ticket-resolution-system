@@ -41,21 +41,7 @@ const getCategoryIcon = (category, size = 18) => {
   return <FileText size={size} style={{ color: '#6366F1' }} />;
 };
 
-const getAIConfidence = (ticket) => {
-  const titleLower = (ticket.title || "").toLowerCase();
-  const descLower = (ticket.description || "").toLowerCase();
-  const catLower = (ticket.category || "").toLowerCase();
-  if (catLower.includes("bill") || titleLower.includes("refund") || titleLower.includes("payment")) {
-    return "96% confidence";
-  }
-  if (catLower.includes("tech") || titleLower.includes("api") || descLower.includes("doc")) {
-    return "93% confidence";
-  }
-  if (catLower.includes("general") || titleLower.includes("help")) {
-    return "89% confidence";
-  }
-  return "91% confidence";
-};
+
 
 const getLastUpdatedText = (ticket) => {
   const time = ticket.updated_at || ticket.created_at;
@@ -1988,8 +1974,7 @@ export default function MyTickets() {
                         ? new Date(ticket.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                         : "—";
 
-                      const confidenceString = getAIConfidence(ticket);
-                      const confidenceNum = parseInt(confidenceString) || 91;
+
                       const badgeInfo = STATUS_BADGE_MAP[ticket.status] || { label: ticket.status, bg: '#F1F5F9', text: '#475569', border: '#E2E8F0' };
 
                       return (
@@ -2066,14 +2051,8 @@ export default function MyTickets() {
                             {ticket.description || "No description provided."}
                           </div>
 
-                          {/* Dynamic progress bar for AI confidence & Recommendation */}
+                          {/* Dynamic progress bar for AI Recommendation */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px', borderLeft: '3px solid #7C3AED', paddingLeft: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 'bold', color: '#047857' }}>
-                              <span>🟢 {confidenceNum}% AI Confidence</span>
-                              <div style={{ width: '60px', height: '4px', background: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ background: '#10B981', width: `${confidenceNum}%`, height: '100%' }} />
-                              </div>
-                            </div>
                             <div style={{ fontSize: '12px', color: '#7C3AED', fontWeight: '700', lineHeight: '1.3' }}>
                               <span>AI Recommendation: </span>
                               <span style={{ color: '#475569', fontWeight: '500' }}>{getAIRecommendationText(ticket)}</span>

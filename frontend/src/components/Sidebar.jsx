@@ -60,6 +60,7 @@ export default function Sidebar({ collapsed }) {
       ]
     : [
         { icon: LayoutDashboard, to: '/dashboard', label: 'Dashboard' },
+        { icon: Inbox, to: '/agent/my-queue', label: 'My Queue' },
         { icon: Ticket, to: '/tickets', label: 'Tickets' },
         { icon: Users, to: '/users', label: 'Users' },
         { icon: BookOpen, to: '/knowledge-base', label: 'Knowledge Base' },
@@ -281,6 +282,9 @@ export default function Sidebar({ collapsed }) {
             <div className="zd-panel__section-label">Overview</div>
             <NavLink to="/dashboard" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
               <LayoutDashboard size={16} /> Dashboard
+            </NavLink>
+            <NavLink to="/agent/my-queue" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
+              <Inbox size={16} /> My Queue
             </NavLink>
             <NavLink to="/tickets" className={({ isActive }) => `zd-panel__link ${isActive ? 'active' : ''}`}>
               <Ticket size={16} /> All Tickets

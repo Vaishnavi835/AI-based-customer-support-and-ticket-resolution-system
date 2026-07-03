@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import { authAPI } from "../api/services";
+import { useToast } from "../context/ToastContext";
 
 export default function ForgotPassword() {
   const [step, setStep] = useState(1); // 1: Email, 2: Code, 3: Password, 4: Success
@@ -16,6 +18,7 @@ export default function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
+  const toast = useToast();
   const codeRefs = useRef([]);
 
   // Auto-focus code inputs on step change
@@ -33,10 +36,12 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      // Simulate API call to send recovery email
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const res = await authAPI.forgotPassword(email);
+      if (res.data.demo_code) {
+        toast.success(`Demo mode: Your code is ${res.data.demo_code}`);
+      }
       setStep(2);
-    } catch {
+    } catch (err) {
       setError("Failed to send recovery code. Please try again.");
     } finally {
       setLoading(false);
@@ -103,11 +108,10 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      // Simulate API verification call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await authAPI.verifyResetCode(email, fullCode);
       setStep(3);
-    } catch {
-      setError("Invalid code. Please verify and try again.");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Invalid code. Please verify and try again.");
     } finally {
       setLoading(false);
     }
@@ -128,16 +132,15 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      // Simulate API reset call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await authAPI.resetPassword(email, code.join(""), newPassword);
       setStep(4);
       
       // Auto-redirect to login after 5 seconds
       setTimeout(() => {
         navigate("/login");
       }, 5000);
-    } catch {
-      setError("Failed to reset password. Please try again.");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to reset password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -146,7 +149,15 @@ export default function ForgotPassword() {
   const resendCode = async () => {
     setError("");
     setCode(Array(6).fill(""));
-    setSuccessMsg("Code resent successfully!");
+    try {
+      const res = await authAPI.forgotPassword(email);
+      if (res.data.demo_code) {
+        toast.success(`Demo mode: Your new code is ${res.data.demo_code}`);
+      }
+      setSuccessMsg("Code resent successfully!");
+    } catch (err) {
+      setError("Failed to resend code.");
+    }
     setTimeout(() => setSuccessMsg(""), 3000);
     
     // Auto focus first field
@@ -197,7 +208,7 @@ export default function ForgotPassword() {
                   />
                 </div>
 
-                <button type="submit" className="register-submit" disabled={loading}>
+                <button type="submit" className="register-submit register-submit--brand" disabled={loading}>
                   {loading ? "Sending code..." : "Send code"}
                 </button>
               </form>
@@ -242,7 +253,7 @@ export default function ForgotPassword() {
                   </div>
                 </div>
 
-                <button type="submit" className="register-submit" disabled={loading}>
+                <button type="submit" className="register-submit register-submit--brand" disabled={loading}>
                   {loading ? "Verifying..." : "Verify code"}
                 </button>
               </form>
@@ -352,7 +363,7 @@ export default function ForgotPassword() {
                     </div>
                   </div>
 
-                  <button type="submit" className="register-submit" style={{ marginTop: '20px' }} disabled={loading}>
+                  <button type="submit" className="register-submit register-submit--brand" style={{ marginTop: '20px' }} disabled={loading}>
                     {loading ? "Updating password..." : "Reset password"}
                   </button>
                 </form>

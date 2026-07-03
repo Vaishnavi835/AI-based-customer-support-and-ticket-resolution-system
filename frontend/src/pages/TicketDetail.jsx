@@ -6,6 +6,7 @@ import { useWebSocketEvent } from "../context/WebSocketContext";
 import { SkeletonCard, SkeletonChatBubble } from "../components/SkeletonCard";
 import { Send, AlertCircle, CheckCircle, Clock, ShieldAlert, ArrowLeft, Bot, Sparkles, User, Tag, BarChart3, Activity, AtSign, RefreshCw } from "lucide-react";
 import { useToast } from "../context/ToastContext";
+import ReactMarkdown from 'react-markdown';
 
 
 /**
@@ -31,23 +32,14 @@ function TypewriterText({ text, speed = 12, onComplete }) {
   }, [currentIndex, text, speed, onComplete]);
 
   return (
-    <span>
-      {displayedText}
+    <div className="markdown-body" style={{ display: 'inline-block', width: '100%' }}>
+      <ReactMarkdown>{displayedText}</ReactMarkdown>
       {currentIndex < text.length && <span className="typewriter-cursor" />}
-    </span>
+    </div>
   );
 }
 
-/* ── Helper: derive AI confidence from ticket data ─────────────── */
-const getAIConfidence = (ticket) => {
-  if (!ticket) return 72;
-  const cat = (ticket.category || "").toLowerCase();
-  const title = (ticket.title || "").toLowerCase();
-  if (cat.includes("bill") || title.includes("refund") || title.includes("payment")) return 96;
-  if (cat.includes("tech") || title.includes("api") || title.includes("server")) return 93;
-  if (cat.includes("general") || title.includes("help")) return 89;
-  return 91;
-};
+
 
 const getResolutionSteps = (category) => {
   const cat = (category || "").toLowerCase();
@@ -326,29 +318,41 @@ export default function TicketDetail() {
   // Flatten the conversation messages for simple, chronological display
   const allMessages = [];
 
-  // 1. Initial description as the starting customer turn
-  allMessages.push({
-    id: "init",
-    role: "customer",
-    name: ticket.user_name || "Customer",
-    content: ticket.description,
-    timestamp: ticket.created_at,
-    isInitial: true
-  });
+  // 1. Add initial ticket context as the first message
+  if (ticket && ticket.description) {
+    allMessages.push({
+      id: `ticket-init-${ticket.id}`,
+      role: "customer",
+      name: ticket.user_name || "Customer",
+      content: ticket.description.trim(),
+      timestamp: ticket.created_at,
+      isInitial: true
+    });
+  }
 
-  // 2. Add all historical chat turns
-  chats.forEach((chat) => {
-    if (chat.messages) {
-      chat.messages.forEach((msg, idx) => {
+  // 2. Add chat history
+  if (chats && chats.length > 0) {
+    chats.forEach((chat) => {
+      const msgs = chat.messages || [];
+      msgs.forEach((msg, idx) => {
         const timeVal = msg.timestamp || chat.created_at;
         if (msg.prompt) {
-          allMessages.push({
-            id: `prompt-${chat.id}-${idx}`,
-            role: "customer",
-            name: ticket.user_name || "Customer",
-            content: msg.prompt,
-            timestamp: timeVal,
-          });
+          const promptContent = msg.prompt.trim();
+          const lastMsg = allMessages[allMessages.length - 1];
+          
+          // Deduplicate if the prompt matches the last message (e.g. ticket description)
+          if (lastMsg && lastMsg.role === "customer" && lastMsg.content === promptContent) {
+            // Just update the timestamp to reflect when they actually started the chat
+            lastMsg.timestamp = timeVal;
+          } else {
+            allMessages.push({
+              id: `prompt-${chat.id}-${idx}`,
+              role: "customer",
+              name: ticket.user_name || "Customer",
+              content: promptContent,
+              timestamp: timeVal,
+            });
+          }
         }
         if (msg.response) {
           allMessages.push({
@@ -363,16 +367,15 @@ export default function TicketDetail() {
           });
         }
       });
-    }
-  });
+    });
+  }
 
-  const confidence = getAIConfidence(ticket);
   const statusColorMap = {
     open:      { label: "🟢 Open", bg: "#EFF6FF", text: "#1E40AF", border: "#BFDBFE" },
     pending:   { label: "🟡 Pending", bg: "#FEF3C7", text: "#92400E", border: "#FDE68A" },
     escalated: { label: "🔴 Escalated", bg: "#FEE2E2", text: "#991B1B", border: "#FCA5A5" },
-    resolved:  { label: "✅ Resolved", bg: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
-    closed:    { label: "⏹ Closed", bg: "#F3F4F6", text: "#374151", border: "#E5E7EB" },
+    resolved:  { label: "✅ Self-Resolved", bg: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
+    closed:    { label: "🤝 Closed by Support", bg: "#EFF6FF", text: "#1E40AF", border: "#BFDBFE" },
   };
   const priorityColorMap = {
     high: { bg: '#FEE2E2', text: '#DC2626', border: '#FCA5A5' },
@@ -419,14 +422,19 @@ export default function TicketDetail() {
                   <Bot size={14} /> Takeover
                 </button>
               )}
-              {ticket.status !== 'resolved' && (
-                <button onClick={() => handleStatusChange("resolved")} className="td-action-btn td-action-btn--green">
-                  <CheckCircle size={14} /> Resolve
+              {ticket.status !== 'closed' && ticket.status !== 'resolved' && (
+                <button onClick={() => handleStatusChange("closed")} className="td-action-btn td-action-btn--green">
+                  <CheckCircle size={14} /> Close (Solved)
                 </button>
               )}
-              {ticket.status !== 'escalated' && ticket.status !== 'resolved' && (
+              {ticket.status !== 'escalated' && ticket.status !== 'closed' && ticket.status !== 'resolved' && (
                 <button onClick={() => handleStatusChange("escalated")} className="td-action-btn td-action-btn--red">
                   <ShieldAlert size={14} /> Escalate
+                </button>
+              )}
+              {(ticket.status === 'closed' || ticket.status === 'resolved') && (
+                <button onClick={() => handleStatusChange("open")} className="td-action-btn td-action-btn--blue">
+                  <RefreshCw size={14} /> Reopen Ticket
                 </button>
               )}
             </div>
@@ -436,12 +444,7 @@ export default function TicketDetail() {
             <div className="td-header__actions">
               {ticket.status !== 'resolved' && ticket.status !== 'closed' && (
                 <button onClick={() => handleStatusChange("resolved")} className="td-action-btn td-action-btn--green">
-                  <CheckCircle size={14} /> Mark as Resolved
-                </button>
-              )}
-              {ticket.status === 'resolved' && (
-                <button onClick={() => handleStatusChange("closed")} className="td-action-btn td-action-btn--gray">
-                  <AlertCircle size={14} /> Close Ticket
+                  <CheckCircle size={14} /> I Solved This
                 </button>
               )}
               {(ticket.status === 'resolved' || ticket.status === 'closed') && (
@@ -545,12 +548,14 @@ export default function TicketDetail() {
                                   }} 
                                 />
                               ) : (
-                                <span>{msg.content}</span>
+                                <div className="markdown-body" style={{ width: '100%' }}>
+                                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
                               )}
                             </div>
                           </div>
                         ) : (
-                          <span>{msg.content}</span>
+                          <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
                         )}
                         
                         {isAi && msg.rag_used && msg.sources && msg.sources.length > 0 && (
@@ -998,22 +1003,7 @@ export default function TicketDetail() {
                 AI Analysis & Triage
               </h3>
               
-              <div className="td-confidence" style={{ marginBottom: '8px' }}>
-                <div className="td-confidence__header">
-                  <span className="td-confidence__label" style={{ fontWeight: '600' }}>Confidence Score</span>
-                  <span className="td-confidence__value" style={{ fontWeight: '800', color: '#7C3AED' }}>{confidence}%</span>
-                </div>
-                <div className="td-confidence__bar">
-                  <div 
-                    className="td-confidence__fill" 
-                    style={{ width: `${confidence}%`, background: '#7C3AED' }}
-                  />
-                </div>
-                <div className="td-confidence__detail" style={{ fontSize: '11px', color: '#64748B' }}>
-                  <span>Model: Gemini 2.5 Flash</span>
-                  <span>Latency: ~1.2s</span>
-                </div>
-              </div>
+
 
               {(() => {
                 const triage = getAITriageDetails(ticket);

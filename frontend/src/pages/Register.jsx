@@ -100,7 +100,7 @@ function DemoTicket({ step }) {
               </div>
               <div>Category: <strong>Billing / Refunds</strong></div>
               <div>Priority: <strong>Medium</strong></div>
-              <div>Confidence: <strong>97.2%</strong></div>
+
             </div>
           </div>
         )}
@@ -469,7 +469,7 @@ export default function Register() {
               Note: Agents and admins are invited by your admin.
             </p>
 
-            <button type="submit" className="register-submit register-submit--premium" disabled={loading || !isFormValid} style={{ marginTop: '16px' }}>
+            <button type="submit" className="register-submit register-submit--brand" disabled={loading || !isFormValid} style={{ marginTop: '16px' }}>
               {loading ? "Creating account..." : "Create account"}
             </button>
           </form>

@@ -124,7 +124,7 @@ export default function AIAssistant() {
           setTimeout(() => {
             setOutputResult(
               `### 🏷️ AI Auto-Triage Classification Model\n` +
-              `- **Predicted Category**: \`Technical / Port-Timeout\` (Confidence: 94%)\n` +
+              `- **Predicted Category**: \`Technical / Port-Timeout\`\n` +
               `- **Suggested Priority**: \`🚨 Critical / SLA risk\`\n` +
               `- **Detected Customer Sentiment**: \`Frustrated / Impatient 🔴\`\n` +
               `- **Recommended Assignment**: Tier-2 SysOps Backend developers group.`

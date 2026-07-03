@@ -174,7 +174,7 @@ export default function MyQueue() {
           { key: "open", label: "Open", count: tabOpen.length, color: "#6366F1" },
           { key: "pending", label: "Pending", count: tabPending.length, color: "#F59E0B" },
           { key: "waiting", label: "Waiting for Customer", count: tabWaiting.length, color: "#3B82F6" },
-          { key: "resolved", label: "Resolved Today", count: tabResolved.length, color: "#10B981" }
+          { key: "resolved", label: "Closed Today", count: tabResolved.length, color: "#10B981" }
         ].map((t) => (
           <button
             key={t.key}

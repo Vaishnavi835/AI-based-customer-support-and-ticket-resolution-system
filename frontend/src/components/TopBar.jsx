@@ -35,23 +35,11 @@ export default function TopBar({ title, onToggleSidebar }) {
       notificationsAPI.list()
         .then((res) => {
           const list = res.data || [];
-          if (list.length === 0) {
-            setNotifications([
-              { id: "n1", text: "Ticket #231 updated", unread: true, created_at: new Date(Date.now() - 10 * 60_000).toISOString() },
-              { id: "n2", text: "Payment issue resolved", unread: true, created_at: new Date(Date.now() - 35 * 60_000).toISOString() },
-              { id: "n3", text: "Agent replied to payment query", unread: true, created_at: new Date(Date.now() - 120 * 60_000).toISOString() },
-            ]);
-          } else {
-            setNotifications(list);
-          }
+          setNotifications(list);
         })
         .catch((err) => {
           console.error("Failed to load notifications", err);
-          setNotifications([
-            { id: "n1", text: "Ticket #231 updated", unread: true, created_at: new Date(Date.now() - 10 * 60_000).toISOString() },
-            { id: "n2", text: "Payment issue resolved", unread: true, created_at: new Date(Date.now() - 35 * 60_000).toISOString() },
-            { id: "n3", text: "Agent replied to payment query", unread: true, created_at: new Date(Date.now() - 120 * 60_000).toISOString() },
-          ]);
+          setNotifications([]);
         });
     }
   }, [user]);

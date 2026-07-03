@@ -32,6 +32,26 @@ export function AuthProvider({ children }) {
     return userObj;
   };
 
+  const socialLogin = async (provider, email, name) => {
+    const response = await authAPI.socialLogin(provider, email, name);
+    const data     = response.data;
+
+    const userObj = {
+      id:    data.user_id,
+      name:  data.name,
+      email: data.email,
+      role:  data.role,
+    };
+
+    setToken(data.access_token);
+    setUser(userObj);
+
+    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("user", JSON.stringify(userObj));
+
+    return userObj;
+  };
+
   const register = async (name, email, password, role = "customer") => {
     const response = await authAPI.register(name, email, password, role);
     const data     = response.data;
@@ -84,6 +104,7 @@ export function AuthProvider({ children }) {
       token,
       loading,
       login,
+      socialLogin,
       register,
       logout,
       isAdmin,

@@ -9,8 +9,8 @@ const STATUS_CONFIG = {
   open:      { color: "#475569", bg: "#F1F5F9", label: "Open" },
   pending:   { color: "#92400E", bg: "#FFFBEB", label: "Pending" },
   escalated: { color: "#991B1B", bg: "#FEF2F2", label: "Escalated" },
-  resolved:  { color: "#166534", bg: "#F0FDF4", label: "Resolved" },
-  closed:    { color: "#4B5563", bg: "#F3F4F6", label: "Closed" },
+  resolved:  { color: "#166534", bg: "#F0FDF4", label: "Self-Resolved" },
+  closed:    { color: "#1E40AF", bg: "#EFF6FF", label: "Closed by Support" },
 };
 
 const PRIORITY_CONFIG = {
@@ -38,12 +38,6 @@ function PriorityPill({ priority }) {
   );
 }
 
-const getAIConfidence = (t) => {
-  if (!t) return 70;
-  const idStr = String(t.id || "");
-  const num = idStr.charCodeAt(idStr.length - 1) || 5;
-  return 80 + (num % 18); // generate realistic stable mock score (80% - 97%)
-};
 
 export default function TicketList({ mode = "all" }) {
   const navigate = useNavigate();
@@ -56,7 +50,7 @@ export default function TicketList({ mode = "all" }) {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("date"); // "date", "ai_confidence"
+  const [sortBy, setSortBy] = useState("date"); // "date"
 
   const [agents, setAgents] = useState([]);
 
@@ -112,9 +106,6 @@ export default function TicketList({ mode = "all" }) {
 
   // Sorting
   const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === "ai_confidence") {
-      return getAIConfidence(b) - getAIConfidence(a);
-    }
     // Sort by Date desc
     return new Date(b.created_at || 0) - new Date(a.created_at || 0);
   });
@@ -238,7 +229,6 @@ export default function TicketList({ mode = "all" }) {
                 style={{ padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #E4E7EC', fontSize: '12.5px', background: '#fff', color: '#374151', cursor: 'pointer', outline: 'none' }}
               >
                 <option value="date">Creation Date</option>
-                <option value="ai_confidence">AI Confidence Score</option>
               </select>
             </div>
 
@@ -250,7 +240,7 @@ export default function TicketList({ mode = "all" }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#FAFAFA', borderBottom: '1px solid #F1F3F6' }}>
-              {['#', 'Title', 'Status', 'Priority', 'AI Match', 'Date', ''].map(h => (
+              {['#', 'Title', 'Status', 'Priority', 'Date', ''].map(h => (
                 <th key={h} style={{ padding: '11px 20px', textAlign: 'left', fontSize: '11px', fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
               ))}
             </tr>
@@ -277,13 +267,6 @@ export default function TicketList({ mode = "all" }) {
                 </td>
                 <td style={{ padding: '14px 20px' }}><StatusPill status={ticket.status} /></td>
                 <td style={{ padding: '14px 20px' }}><PriorityPill priority={ticket.priority} /></td>
-                
-                {/* AI Match rating percentage display */}
-                <td style={{ padding: '14px 20px' }}>
-                  <span style={{ fontSize: '12.5px', color: '#6366F1', fontWeight: '800' }}>
-                    {getAIConfidence(ticket)}%
-                  </span>
-                </td>
 
                 <td style={{ padding: '14px 20px', fontSize: '13px', color: '#9CA3AF' }}>{formatDate(ticket.created_at)}</td>
                 <td style={{ padding: '14px 20px' }}>

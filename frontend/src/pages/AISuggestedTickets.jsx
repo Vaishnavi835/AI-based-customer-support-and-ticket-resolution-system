@@ -197,12 +197,6 @@ export default function AISuggestedTickets() {
                   </span>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontSize: "13px", color: "#64748B", fontWeight: "500" }}>Confidence:</span>
-                  <span style={{
-                    fontSize: "14px", fontWeight: "800", color: t.confidence > 90 ? "#10B981" : "#F59E0B"
-                  }}>{t.confidence}%</span>
-                </div>
               </div>
 
               {/* Title & Desc */}

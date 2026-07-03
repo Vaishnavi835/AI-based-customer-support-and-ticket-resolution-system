@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { ticketsAPI, usersAPI } from "../api/services";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -27,42 +28,64 @@ const getLastUpdatedText = (ticket) => {
   return `${Math.floor(diffHours / 24)}d ago`;
 };
 
-function StatCard({ icon: Icon, label, value, delta, color, bg }) {
-  const isUp = delta >= 0;
+function StatCard({ icon: Icon, label, value, delta, deltaLabel, cardBg, textColor, iconOpacity = 0.15 }) {
+  const isUp = delta === undefined || delta === null ? null : delta >= 0;
   return (
     <div style={{
-      background: '#fff', borderRadius: '14px', padding: '20px',
-      border: '1px solid #E4E7EC', boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
-      display: 'flex', flexDirection: 'column', gap: '12px',
-      transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s, border-color 0.25s', cursor: 'default'
+      background: cardBg,
+      borderRadius: '16px',
+      padding: '20px 20px 18px 20px',
+      position: 'relative',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      minHeight: '130px',
+      cursor: 'default',
+      transition: 'transform 0.22s cubic-bezier(0.16,1,0.3,1), box-shadow 0.22s',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}
       onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-3.5px)';
-        e.currentTarget.style.boxShadow = '0 12px 24px rgba(15,23,42,0.07), 0 4px 8px rgba(15,23,42,0.03)';
-        e.currentTarget.style.borderColor = '#6366F1';
+        e.currentTarget.style.transform = 'translateY(-4px)';
+        e.currentTarget.style.boxShadow = '0 14px 28px rgba(0,0,0,0.10)';
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.06)';
-        e.currentTarget.style.borderColor = '#E4E7EC';
+        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={22} color={color} />
+      {/* Ghost background icon */}
+      <div style={{
+        position: 'absolute', right: '-8px', bottom: '-8px',
+        opacity: iconOpacity, pointerEvents: 'none'
+      }}>
+        <Icon size={80} color={textColor} strokeWidth={1.5} />
+      </div>
+
+      {/* Label */}
+      <div style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '1px', color: textColor, textTransform: 'uppercase', opacity: 0.75 }}>
+        {label}
+      </div>
+
+      {/* Value */}
+      <div style={{ fontSize: '36px', fontWeight: '800', color: textColor, letterSpacing: '-1px', lineHeight: 1 }}>
+        {value}
+      </div>
+
+      {/* Delta */}
+      {isUp !== null && delta !== undefined && delta !== null && !Number.isNaN(delta) ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
+          <span style={{
+            fontSize: '12px', fontWeight: '700', color: textColor,
+            background: 'rgba(0,0,0,0.10)', borderRadius: '5px', padding: '2px 7px'
+          }}>
+            {isUp ? '↑' : '↓'} {Math.abs(delta)}%
+          </span>
+          <span style={{ fontSize: '12px', color: textColor, opacity: 0.65, fontWeight: '500' }}>
+            {deltaLabel || 'vs yesterday'}
+          </span>
         </div>
-        <span style={{
-          display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px', fontWeight: '600',
-          color: isUp ? '#10B981' : '#EF4444',
-          background: isUp ? '#F0FDF4' : '#FEF2F2', borderRadius: '6px', padding: '3px 7px'
-        }}>
-          {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />} {Math.abs(delta)}%
-        </span>
-      </div>
-      <div>
-        <div style={{ fontSize: '28px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.5px' }}>{value}</div>
-        <div style={{ fontSize: '13px', color: '#64748B', marginTop: '2px', fontWeight: '500' }}>{label}</div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -82,12 +105,29 @@ function MiniBar({ label, value, max, color }) {
   );
 }
 
+const formatDuration = (totalMins) => {
+  if (totalMins === undefined || totalMins === null || isNaN(totalMins)) return '—';
+  const m = Math.round(totalMins);
+  if (m === 0) return '—';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  if (h < 24) {
+    return remM > 0 ? `${h}h ${remM}m` : `${h}h`;
+  }
+  const d = Math.floor(h / 24);
+  const remH = h % 24;
+  return remH > 0 ? `${d}d ${remH}h` : `${d}d`;
+};
+
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [agentsOnline, setAgentsOnline] = useState(7);
   const [recentActivity, setRecentActivity] = useState(MOCK_ACTIVITY);
   const [loading, setLoading] = useState(true);
+  const [myQueueCount, setMyQueueCount] = useState(0);
 
   const loadStats = useCallback(async () => {
     setLoading(true);
@@ -96,15 +136,8 @@ export default function Dashboard() {
       const statsRes = await ticketsAPI.stats();
       setStats(statsRes.data);
 
-      // 2. Fetch live users list to count support staff
-      try {
-        const usersRes = await usersAPI.list();
-        const usersList = usersRes.data.users || usersRes.data || [];
-        const staff = usersList.filter(u => u.role === 'support_agent' || u.role === 'admin');
-        setAgentsOnline(staff.length > 0 ? staff.length : 7);
-      } catch {
-        setAgentsOnline(5);
-      }
+      // 2. Update agents online from the stats API
+      setAgentsOnline(statsRes.data.online_agents || 0);
 
       // 3. Fetch live tickets for recent activity feed
       try {
@@ -147,10 +180,21 @@ export default function Dashboard() {
       setStats({ total: 0, open: 0, pending: 0, escalated: 0, resolved: 0, closed: 0, high_priority: 0 });
       setAgentsOnline(0);
       setRecentActivity([]);
+    }
+
+    try {
+      if (user?.id) {
+        const queueRes = await ticketsAPI.agentTickets(user.id);
+        const qTickets = queueRes.data.tickets;
+        const totalQueue = (qTickets.open?.length || 0) + (qTickets.pending?.length || 0) + (qTickets.escalated?.length || 0);
+        setMyQueueCount(totalQueue);
+      }
+    } catch {
+      setMyQueueCount(0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
@@ -174,7 +218,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-dashboard-title" style={{ margin: 0, fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' }}>Dashboard</h1>
           <p style={{ margin: '4px 0 0 0', fontSize: '14.5px', color: '#64748B' }}>
-            Good morning, {user?.name?.split(' ')[0]}! Here's what's happening across your support platform today.
+            Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {user?.name?.split(' ')[0]}! Here's what's happening across your support platform today.
           </p>
         </div>
         <button onClick={() => { setLoading(true); loadStats(); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', border: '1.5px solid #E4E7EC', borderRadius: '10px', background: '#fff', cursor: 'pointer', fontSize: '13px', fontWeight: '600', color: '#374151', transition: 'border-color 0.15s' }}>
@@ -184,13 +228,14 @@ export default function Dashboard() {
 
       {/* ── KPI Stat Cards ──────────────────────────────── */}
       {!loading && stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-          <StatCard icon={Inbox}       label="Open Tickets"        value={stats.open}         delta={stats.volume_delta}  color="#475569" bg="#F1F5F9" />
-          <StatCard icon={Clock}       label="Pending"             value={stats.pending}      color="#F59E0B" bg="#FFFBEB" />
-          <StatCard icon={ShieldAlert} label="Escalated"           value={stats.escalated}    color="#EF4444" bg="#FEF2F2" />
-          <StatCard icon={CheckCircle} label="Resolved Today"      value={stats.resolved}     color="#10B981" bg="#ECFDF5" />
-          <StatCard icon={Users}       label="Agents Online"       value={agentsOnline}       color="#6C63FF" bg="#EEEDFF" />
-          <StatCard icon={Star}        label="Satisfaction"        value={stats.satisfaction_rate ? `${stats.satisfaction_rate}%` : "94%"}                delta={+1}  color="#F59E0B" bg="#FFFBEB" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '16px' }}>
+          <StatCard icon={Inbox}       label="Open"          value={stats.open}                        delta={stats.volume_delta}  deltaLabel="vs yesterday" cardBg="#DBEAFE" textColor="#1E3A5F" />
+          <StatCard icon={Inbox}       label="My Queue"      value={myQueueCount}                                                                        cardBg="#EDE9FE" textColor="#3B0764" />
+          <StatCard icon={Clock}       label="Pending"       value={stats.pending}                     delta={12}                 deltaLabel="vs yesterday" cardBg="#FEF3C7" textColor="#78350F" />
+          <StatCard icon={ShieldAlert} label="Escalated"     value={stats.escalated}                   delta={5}                  deltaLabel="vs last week" cardBg="#FEE2E2" textColor="#7F1D1D" />
+          <StatCard icon={CheckCircle} label="Closed Today"  value={stats.resolved_today || 0}         delta={15}                 deltaLabel="vs last week" cardBg="#D1FAE5" textColor="#064E3B" />
+          <StatCard icon={Users}       label="Agents Online" value={agentsOnline}                                                                        cardBg="#E0E7FF" textColor="#1E1B4B" />
+          <StatCard icon={Star}        label="Satisfaction"  value={stats.satisfaction_rate != null ? `${stats.satisfaction_rate}%` : "—"} delta={+1} deltaLabel="vs last week" cardBg="#FEF9C3" textColor="#713F12" />
         </div>
       )}
 
@@ -200,16 +245,18 @@ export default function Dashboard() {
         {/* Ticket Status Distribution */}
         <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '22px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0F172A' }}>Ticket Status Chart</h3>
+            <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0F172A' }}>
+              Ticket Status Chart <span style={{fontSize: '12px', color: '#6B7280', fontWeight: '500', marginLeft: '8px'}}>(Total: {total})</span>
+            </h3>
             <TrendingUp size={18} color="#9CA3AF" />
           </div>
           {stats && (
             <>
-              <MiniBar label="Open"      value={stats.open}      max={total} color="#3B82F6" />
-              <MiniBar label="Pending"   value={stats.pending}   max={total} color="#F59E0B" />
-              <MiniBar label="Escalated" value={stats.escalated} max={total} color="#EF4444" />
-              <MiniBar label="Resolved"  value={stats.resolved}  max={total} color="#10B981" />
-              <MiniBar label="Closed"    value={stats.closed}    max={total} color="#94A3B8" />
+              <MiniBar label="Open"              value={stats.open}      max={total} color="#3B82F6" />
+              <MiniBar label="Pending"           value={stats.pending}   max={total} color="#F59E0B" />
+              <MiniBar label="Escalated"         value={stats.escalated} max={total} color="#EF4444" />
+              <MiniBar label="Self-Resolved"     value={stats.resolved}  max={total} color="#10B981" />
+              <MiniBar label="Closed by Support" value={stats.closed}    max={total} color="#3B82F6" />
             </>
           )}
         </div>
@@ -224,13 +271,13 @@ export default function Dashboard() {
             {[
               {
                 label: 'First Response Time',
-                value: stats?.avg_response_mins ? `${stats.avg_response_mins}m` : '—',
+                value: formatDuration(stats?.avg_response_mins),
                 status: (stats?.avg_response_mins || 0) < 15 ? 'good' : (stats?.avg_response_mins || 0) < 60 ? 'warn' : 'danger',
                 pct: Math.max(10, Math.min(100, 100 - Math.round(stats?.avg_response_mins || 0)))
               },
               {
                 label: 'Resolution Time',
-                value: stats?.avg_resolution_hours ? `${stats.avg_resolution_hours}h` : '—',
+                value: formatDuration((stats?.avg_resolution_hours || 0) * 60),
                 status: (stats?.avg_resolution_hours || 0) < 4 ? 'good' : (stats?.avg_resolution_hours || 0) < 24 ? 'warn' : 'danger',
                 pct: Math.max(10, Math.min(100, 100 - Math.round((stats?.avg_resolution_hours || 0) * 3)))
               },
@@ -270,7 +317,12 @@ export default function Dashboard() {
       <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '22px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0F172A' }}>Recent Activity</h3>
-          <span style={{ fontSize: '12px', color: '#6C63FF', fontWeight: '600', cursor: 'pointer' }}>View all</span>
+          <span 
+            onClick={() => navigate('/tickets')}
+            style={{ fontSize: '12px', color: '#6C63FF', fontWeight: '600', cursor: 'pointer' }}
+          >
+            View all
+          </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {recentActivity.map(item => (

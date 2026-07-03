@@ -368,13 +368,13 @@ export default function AgentDashboard() {
                          onMouseEnter={e => e.currentTarget.style.background = '#F0FDF4'}
                          onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}>
                       <span style={{ color: '#10B981', fontWeight: 'bold' }}>✦</span>
-                      <span>Auto-respond to **Ticket #3311** using refund policy (Confidence: 94%)</span>
+                      <span>Auto-respond to **Ticket #3311** using refund policy</span>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', fontSize: '13px', background: '#F8FAFC', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}
                          onMouseEnter={e => e.currentTarget.style.background = '#EEEDFF'}
                          onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}>
                       <span style={{ color: '#6366F1', fontWeight: 'bold' }}>✦</span>
-                      <span>Escalate **Ticket #3298** to Tier-2 Backend Developers (Confidence: 91%)</span>
+                      <span>Escalate **Ticket #3298** to Tier-2 Backend Developers</span>
                     </div>
                   </div>
                 </div>
@@ -540,9 +540,6 @@ export default function AgentDashboard() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <span style={{ fontSize: '12px', fontWeight: '800', color: '#065F46' }}>#{ticket.id}</span>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Bot size={12} /> {ticket.confidence}% Match
-                    </span>
                   </div>
                   <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '4px' }}>{ticket.title}</div>
                   <div style={{ fontSize: '12px', color: '#64748B' }}>{ticket.category}</div>

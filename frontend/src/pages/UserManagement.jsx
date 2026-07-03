@@ -73,7 +73,7 @@ export default function UserManagement() {
         const res = await usersAPI.list();
         const usersWithStatus = res.data.map(u => ({
           ...u,
-          status: "offline",
+          status: u.status || "offline",
           created_at: u.created_at ? u.created_at.split("T")[0] : "N/A"
         }));
         setUsers(usersWithStatus);
@@ -135,7 +135,7 @@ export default function UserManagement() {
       
       // Refresh list
       const res = await usersAPI.list();
-      const usersWithStatus = res.data.map(u => ({ ...u, status: "offline", created_at: u.created_at ? u.created_at.split("T")[0] : "N/A" }));
+      const usersWithStatus = res.data.map(u => ({ ...u, status: u.status || "offline", created_at: u.created_at ? u.created_at.split("T")[0] : "N/A" }));
       setUsers(usersWithStatus);
     } catch (err) {
       alert("Failed to invite user: " + (err.response?.data?.detail || err.message));

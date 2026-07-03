@@ -35,6 +35,10 @@ export const authAPI = {
     });
   },
 
+  /** Social login endpoint */
+  socialLogin: (provider, email, name) => 
+    api.post("/auth/social-login", { provider, email, name }),
+
   /** Get the currently logged-in user's profile. */
   me: () => api.get("/auth/me"),
 
@@ -46,6 +50,10 @@ export const authAPI = {
 
   /** Terminate all other device sessions. */
   logoutOthers: () => api.post("/auth/sessions/logout-others"),
+
+  forgotPassword: (email) => api.post("/auth/forgot-password", { email }),
+  verifyResetCode: (email, code) => api.post("/auth/verify-reset-code", { email, code }),
+  resetPassword: (email, code, new_password) => api.post("/auth/reset-password", { email, code, new_password }),
 };
 
 // ── Tickets ───────────────────────────────────────────────────────────────────
