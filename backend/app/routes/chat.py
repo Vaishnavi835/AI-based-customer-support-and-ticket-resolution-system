@@ -60,6 +60,7 @@ async def get_ai_response(
         )
     else:
         text = await generate_contextual_response(
+            message=message,
             conversation_history=conversation_history,
             ticket_context=ticket_context,
         )
@@ -227,8 +228,16 @@ async def add_message(
         "my issue is fixed",
         "issue is fixed",
         "fixed now",
+        "got it thank you",
+        "got it thanks",
+        "thank you",
+        "thanks",
+        "looks good",
+        "got it",
+        "perfect",
+        "makes sense",
     ]
-    if any(phrase in clean_msg for phrase in resolution_phrases):
+    if len(clean_msg) < 40 and any(phrase in clean_msg for phrase in resolution_phrases):
         await db.tickets_col.update_one(
             {"_id": chat["ticket_id"]},
             {"$set": {"status": "resolved", "resolved_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}}

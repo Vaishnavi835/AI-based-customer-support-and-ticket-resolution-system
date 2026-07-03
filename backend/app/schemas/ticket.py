@@ -36,29 +36,34 @@ class Category(str, Enum):
 
 
 VALID_TRANSITIONS = {
+    # Any active ticket can be self-resolved by the customer OR closed by an agent/AI
     Status.open: [
         Status.pending,
         Status.escalated,
-        Status.resolved,
+        Status.resolved,   # customer self-solved
+        Status.closed,     # agent/AI solved
     ],
 
     Status.pending: [
         Status.escalated,
-        Status.resolved,
+        Status.resolved,   # customer self-solved
+        Status.closed,     # agent/AI solved
     ],
 
     Status.escalated: [
         Status.pending,
-        Status.resolved,
+        Status.resolved,   # customer self-solved
+        Status.closed,     # agent/AI solved
     ],
 
+    # Resolved = customer self-solved. Can reopen if needed.
     Status.resolved: [
-        Status.closed,
-        Status.open,  # Allow reopening
+        Status.open,       # customer reopens
     ],
 
+    # Closed = solved by agent/AI. Can reopen if needed.
     Status.closed: [
-        Status.open,  # Allow reopening
+        Status.open,       # reopen
     ],
 }
 

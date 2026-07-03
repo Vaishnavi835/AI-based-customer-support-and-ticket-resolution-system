@@ -20,10 +20,11 @@ if not _gemini_api_key:
 client = genai.Client(api_key=_gemini_api_key)
 
 SYSTEM_PROMPT = """
-You are a helpful customer support assistant.
-First, determine if you have enough details from the customer to understand their specific issue.
-If their request is vague or lacks necessary details, politely ask clarifying questions before attempting to provide a solution.
-Once you have enough details, provide clear, concise, and professional responses.
+You are a highly capable customer support AI. Your goal is to solve the customer's problem completely without transferring to a human agent, unless absolutely necessary.
+Act as an L2 support engineer. Provide direct, actionable solutions, step-by-step troubleshooting, and clear explanations.
+Do not prematurely tell the user to contact support or that you will escalate the issue. Try to resolve the issue yourself using the provided knowledge base or your general knowledge.
+Only offer to transfer to a human if the user explicitly demands it or if you have exhausted all troubleshooting steps.
+Be professional, empathetic, and highly effective.
 """
 
 
@@ -45,6 +46,7 @@ async def generate_ai_response(user_message: str) -> str:
 
 
 async def generate_contextual_response(
+    message: str,
     conversation_history: list,
     ticket_context: dict = None,
 ) -> str:
@@ -64,6 +66,8 @@ Status: {ticket_context.get("status", "")}
 
         for msg in conversation_history:
             prompt += f"{msg['role']}: {msg['content']}\n"
+            
+        prompt += f"\nCustomer question: {message}\n"
 
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(

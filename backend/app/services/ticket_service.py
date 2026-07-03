@@ -68,6 +68,20 @@ async def _broadcast_ticket_update(ticket_id: str):
         logger.error(f"Failed to broadcast ticket update: {e}")
 
 
+async def _populate_requesters(tickets: list):
+    """Given a list of tickets, fetches user names and adds 'requester' field to each."""
+    if not tickets:
+        return
+    user_ids = list(set([t["user_id"] for t in tickets if t.get("user_id")]))
+    if not user_ids:
+        return
+    users_col = get_db().users_col
+    users = await users_col.find({"_id": {"$in": user_ids}}).to_list(len(user_ids))
+    user_map = {u["_id"]: u.get("name") for u in users}
+    for t in tickets:
+        if t.get("user_id"):
+            t["requester"] = user_map.get(t["user_id"])
+
 
 async def create_ticket(ticket: TicketCreate, user_id: str) -> dict:
     """
@@ -150,6 +164,8 @@ async def get_ticket_by_id(ticket_id: str) -> dict:
         if agent:
             ticket["assigned_agent_name"] = agent.get("name")
 
+    await _populate_requesters([ticket])
+
     return ticket
 
 
@@ -207,6 +223,8 @@ async def list_tickets(
         if chat and "messages" in chat and len(chat["messages"]) > 0:
             t["ai_replied"] = any(msg.get("response") for msg in chat["messages"])
 
+    await _populate_requesters(tickets)
+
     return {
         "tickets":     tickets,
         "total":       total,
@@ -235,7 +253,7 @@ async def get_ticket_stats() -> dict:
     rating_cursor = col.aggregate(rating_pipeline)
     rating_list = await rating_cursor.to_list(1)
 
-    satisfaction = 94
+    satisfaction = None
     if rating_list and rating_list[0]["count"] > 0:
         satisfaction = round((rating_list[0]["avg_rating"] / 5.0) * 100)
 
@@ -287,19 +305,29 @@ async def get_ticket_stats() -> dict:
     else:
         volume_delta = 5 if created_today > 0 else 0
 
+    today_start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    resolved_today_count = await col.count_documents({
+        "status": Status.resolved.value,
+        "resolved_at": {"$gte": today_start_date}
+    })
+
+    online_agents_count = sum(1 for role in manager.user_roles.values() if role in ["support_agent", "admin"])
+
     return {
         "total":         total,
         "open":          open_count,
         "pending":       pending_count,
         "escalated":     escalated_count,
         "resolved":      resolved_count,
+        "resolved_today": resolved_today_count,
         "closed":        closed_count,
         "high_priority": high_prio,
         "satisfaction_rate": satisfaction,
         "avg_response_mins": avg_response_mins,
         "avg_resolution_hours": avg_resolution_hours,
         "sla_miss_rate": miss_rate,
-        "volume_delta": volume_delta
+        "volume_delta": volume_delta,
+        "online_agents": online_agents_count
     }
 
 
@@ -534,6 +562,8 @@ async def get_agent_tickets(agent_id: str) -> dict:
     for t in tickets:
         t["id"] = t.pop("_id")
 
+    await _populate_requesters(tickets)
+
     # Group by status
     grouped = {"open": [], "pending": [], "escalated": [], "resolved": [], "closed": []}
     for t in tickets:
@@ -665,6 +695,8 @@ async def search_tickets(
     for t in tickets:
         t["id"] = t.pop("_id")
 
+    await _populate_requesters(tickets)
+
     return {
         "tickets":     tickets,
         "total":       total,
@@ -745,6 +777,7 @@ async def get_cc_tickets(agent_id: str) -> list:
     tickets = await col.find({"cc_agents": agent_id}).sort("updated_at", DESCENDING).to_list(100)
     for t in tickets:
         t["id"] = t.pop("_id")
+    await _populate_requesters(tickets)
     return tickets
 
 
@@ -765,6 +798,7 @@ async def get_completed_recent_tickets(days: int = 30) -> list:
     tickets = await col.find(query).sort("resolved_at", DESCENDING).to_list(100)
     for t in tickets:
         t["id"] = t.pop("_id")
+    await _populate_requesters(tickets)
     return tickets
 
 
@@ -842,11 +876,20 @@ async def get_ticket_analytics(days: int = 30) -> dict:
     priority_data = await priority_cursor.to_list(100)
     priorities = [{"name": doc["_id"], "value": doc["value"]} for doc in priority_data]
 
+    # 5. Sentiment Distribution
+    sentiment_pipeline = [
+        {"$group": {"_id": "$sentiment", "value": {"$sum": 1}}}
+    ]
+    sentiment_cursor = col.aggregate(sentiment_pipeline)
+    sentiment_data = await sentiment_cursor.to_list(100)
+    sentiments = [{"name": (doc["_id"] or "neutral"), "value": doc["value"]} for doc in sentiment_data]
+
     return {
         "trend": filled_trend,
         "categories": categories,
         "statuses": statuses,
-        "priorities": priorities
+        "priorities": priorities,
+        "sentiments": sentiments
     }
 
 

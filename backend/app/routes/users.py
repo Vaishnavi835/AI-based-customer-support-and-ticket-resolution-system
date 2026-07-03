@@ -29,6 +29,8 @@ async def create_user(user: UserCreate):
     return {"message": "User created", "id": doc["_id"]}
 
 
+from app.services.websocket_manager import manager
+
 @router.get("/")
 async def list_users(
     current_user: dict = Depends(require_role(Role.admin, Role.support_agent)),
@@ -39,6 +41,7 @@ async def list_users(
     for u in users:
         u.pop("password", None)
         u["id"] = u.pop("_id")
+        u["status"] = "online" if str(u["id"]) in manager.active_connections else "offline"
     return users
 
 

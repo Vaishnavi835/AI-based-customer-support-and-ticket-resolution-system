@@ -57,3 +57,49 @@ class TokenResponse(BaseModel):
     name:         str
     email:        str
     role:         str
+
+class SocialLoginRequest(BaseModel):
+    provider: str
+    email: str
+    name: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        return v.lower()
+
+class VerifyResetCodeRequest(BaseModel):
+    email: str
+    code: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        return v.lower()
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        return v.lower()
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v):
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
+

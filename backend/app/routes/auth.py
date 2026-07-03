@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.database.connection import get_db
-from app.schemas.auth import RegisterRequest, TokenResponse
+from app.schemas.auth import RegisterRequest, TokenResponse, SocialLoginRequest, ForgotPasswordRequest, VerifyResetCodeRequest, ResetPasswordRequest
+import random
 from app.utils.auth import hash_password, verify_password
 from app.utils.dependencies import get_current_user
 from app.utils.jwt import create_access_token, revoke_token, verify_access_token
@@ -198,6 +199,98 @@ async def login(request: Request, data: OAuth2PasswordRequestForm = Depends()):
     )
 
 
+@router.post("/social-login", response_model=TokenResponse)
+async def social_login(request: Request, data: SocialLoginRequest):
+    users_col = get_db().users_col
+    user = await users_col.find_one({"email": data.email})
+
+    if not user:
+        # Create a new user for social login
+        user_id = str(uuid.uuid4())
+        role = "customer"
+        user = {
+            "_id": user_id,
+            "name": data.name,
+            "email": data.email,
+            "password": hash_password(str(uuid.uuid4())), # Random secure password
+            "role": role,
+            "created_at": datetime.now(timezone.utc),
+        }
+        await users_col.insert_one(user)
+
+    session_id = str(uuid.uuid4())
+    access_token = create_access_token({"sub": user["_id"], "email": user["email"], "sid": session_id})
+    
+    # Save active session
+    ua = request.headers.get("user-agent", "")
+    device, browser = parse_user_agent(ua)
+    session_doc = {
+        "_id": session_id,
+        "user_id": user["_id"],
+        "device": device,
+        "browser": browser,
+        "ip_address": request.client.host if request.client else "127.0.0.1",
+        "last_active": datetime.now(timezone.utc),
+        "token": access_token
+    }
+    sessions_col = get_db().db["sessions"]
+    await _await_if_coro(sessions_col.insert_one(session_doc))
+
+    return TokenResponse(
+        access_token=access_token,
+        user_id=user["_id"],
+        name=user["name"],
+        email=user["email"],
+        role=user.get("role", "customer"),
+    )
+
+@router.post("/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    users_col = get_db().users_col
+    user = await users_col.find_one({"email": data.email})
+    if not user:
+        return {"message": "If the email is registered, a reset code has been sent.", "demo_code": "000000"}
+        
+    code = f"{random.randint(0, 999999):06d}"
+    expires = datetime.now(timezone.utc) + timedelta(minutes=15)
+    
+    reset_col = get_db().db["password_resets"]
+    await _await_if_coro(reset_col.update_one(
+        {"email": data.email},
+        {"$set": {"code": code, "expires": expires}},
+        upsert=True
+    ))
+    return {"message": "If the email is registered, a reset code has been sent.", "demo_code": code}
+
+
+@router.post("/verify-reset-code")
+async def verify_reset_code(data: VerifyResetCodeRequest):
+    reset_col = get_db().db["password_resets"]
+    record = await _await_if_coro(reset_col.find_one({"email": data.email, "code": data.code}))
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid code.")
+    if datetime.now(timezone.utc) > record["expires"].replace(tzinfo=timezone.utc):
+        raise HTTPException(status_code=400, detail="Code expired.")
+    return {"message": "Code verified."}
+
+
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    reset_col = get_db().db["password_resets"]
+    record = await _await_if_coro(reset_col.find_one({"email": data.email, "code": data.code}))
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid code.")
+    if datetime.now(timezone.utc) > record["expires"].replace(tzinfo=timezone.utc):
+        raise HTTPException(status_code=400, detail="Code expired.")
+        
+    users_col = get_db().users_col
+    await users_col.update_one(
+        {"email": data.email},
+        {"$set": {"password": hash_password(data.new_password)}}
+    )
+    
+    await _await_if_coro(reset_col.delete_one({"_id": record["_id"]}))
+    return {"message": "Password updated successfully."}
 
 @router.get("/me")
 async def read_current_user(current_user: dict = Depends(get_current_user)):
