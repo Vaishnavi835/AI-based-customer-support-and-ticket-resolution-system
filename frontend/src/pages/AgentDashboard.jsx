@@ -101,6 +101,12 @@ export default function AgentDashboard() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAISuggestions, setShowAISuggestions] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTicketTitle, setNewTicketTitle] = useState("");
+  const [newTicketDesc, setNewTicketDesc] = useState("");
+  const [newTicketType, setNewTicketType] = useState("ticket");
+  const [newTicketContact, setNewTicketContact] = useState("");
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false);
 
   // SLA alerts, team workload & system-wide stats
   const [slaAlerts, setSlaAlerts] = useState([]);
@@ -226,6 +232,44 @@ export default function AgentDashboard() {
     loadAISuggested();
   }, [loadTickets, loadExtraData, loadPriority, loadAISuggested]);
 
+  const handleCreateTicketSubmit = async (e) => {
+    e.preventDefault();
+    if (!newTicketTitle.trim() || !newTicketDesc.trim()) {
+      toast.error("Please fill in both Title and Description.");
+      return;
+    }
+    setIsCreatingTicket(true);
+    try {
+      await ticketsAPI.create(
+        newTicketTitle,
+        newTicketDesc,
+        newTicketType,
+        newTicketContact.trim() || null
+      );
+      toast.success("Ticket created successfully!");
+      setNewTicketTitle("");
+      setNewTicketDesc("");
+      setNewTicketType("ticket");
+      setNewTicketContact("");
+      setShowCreateModal(false);
+      loadTickets();
+      loadExtraData();
+      loadPriority();
+      loadAISuggested();
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        toast.error(detail.map(e => e.msg).join(", "));
+      } else if (typeof detail === "string") {
+        toast.error(detail);
+      } else {
+        toast.error("Failed to create ticket.");
+      }
+    } finally {
+      setIsCreatingTicket(false);
+    }
+  };
+
   // Subscribe to real-time ticket events
   useWebSocketEvent("ticket_created", () => {
     loadTickets();
@@ -323,11 +367,13 @@ export default function AgentDashboard() {
           {/* Search bar removed per user request */}
 
           {/* Quick Actions Toolbar */}
-          <button style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px',
-            border: 'none', borderRadius: '10px', background: '#6366F1', color: '#fff',
-            cursor: 'pointer', fontSize: '13.5px', fontWeight: '600', transition: 'all 0.2s'
-          }}
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px',
+              border: 'none', borderRadius: '10px', background: '#6366F1', color: '#fff',
+              cursor: 'pointer', fontSize: '13.5px', fontWeight: '600', transition: 'all 0.2s'
+            }}
             onMouseEnter={e => e.currentTarget.style.background = '#4F46E5'}
             onMouseLeave={e => e.currentTarget.style.background = '#6366F1'}
           >
@@ -381,17 +427,6 @@ export default function AgentDashboard() {
               </>
             )}
           </div>
-
-          <button style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px',
-            border: '1.5px solid #E2E8F0', borderRadius: '10px', background: '#fff', color: '#334155',
-            cursor: 'pointer', fontSize: '13.5px', fontWeight: '600', transition: 'all 0.2s'
-          }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = '#6366F1'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = '#E2E8F0'}
-          >
-            <BarChart3 size={14} /> Reports
-          </button>
         </div>
       </div>
 
@@ -962,6 +997,127 @@ export default function AgentDashboard() {
         </div>
 
       </div>
+
+      {showCreateModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.40)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'fadeIn 0.2s ease-out'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '520px',
+            padding: '28px',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+            position: 'relative'
+          }}>
+            <button 
+              onClick={() => setShowCreateModal(false)}
+              style={{
+                position: 'absolute', right: '20px', top: '20px',
+                background: 'none', border: 'none', cursor: 'pointer', color: '#64748B'
+              }}
+            >
+              <X size={18} />
+            </button>
+            
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0F172A', marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Plus size={20} color="#6366F1" /> Create Support Ticket
+            </h2>
+            
+            <form onSubmit={handleCreateTicketSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>Ticket Title</label>
+                <input 
+                  value={newTicketTitle}
+                  onChange={e => setNewTicketTitle(e.target.value)}
+                  placeholder="Brief summary of the issue (min 3 chars)"
+                  required
+                  style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #E2E8F0', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+                  onFocus={e => e.target.style.borderColor = '#6366F1'}
+                  onBlur={e => e.target.style.borderColor = '#E2E8F0'}
+                />
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>Description</label>
+                <textarea 
+                  value={newTicketDesc}
+                  onChange={e => setNewTicketDesc(e.target.value)}
+                  placeholder="Detailed description of the issue (min 10 chars)"
+                  required
+                  rows={4}
+                  style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #E2E8F0', fontSize: '14px', outline: 'none', resize: 'vertical', fontFamily: 'inherit', transition: 'border-color 0.2s' }}
+                  onFocus={e => e.target.style.borderColor = '#6366F1'}
+                  onBlur={e => e.target.style.borderColor = '#E2E8F0'}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>Incident Type</label>
+                  <select 
+                    value={newTicketType}
+                    onChange={e => setNewTicketType(e.target.value)}
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #E2E8F0', fontSize: '14px', outline: 'none', background: '#fff', cursor: 'pointer' }}
+                  >
+                    <option value="ticket">Ticket (Standard)</option>
+                    <option value="incident">Incident (Urgent/Outage)</option>
+                  </select>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>Customer Contact Info (Optional)</label>
+                  <input 
+                    value={newTicketContact}
+                    onChange={e => setNewTicketContact(e.target.value)}
+                    placeholder="e.g. customer@email.com"
+                    style={{ padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #E2E8F0', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                <button 
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  style={{ padding: '10px 16px', borderRadius: '8px', border: '1.5px solid #E2E8F0', background: '#fff', color: '#334155', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isCreatingTicket}
+                  style={{
+                    padding: '10px 18px', borderRadius: '8px', border: 'none', background: '#6366F1', color: '#fff',
+                    cursor: 'pointer', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px'
+                  }}
+                >
+                  {isCreatingTicket ? (
+                    <>
+                      <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> Creating...
+                    </>
+                  ) : "Create Ticket"}
+                </button>
+              </div>
+            </form>
+          </div>
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
 
     </div>
   );
