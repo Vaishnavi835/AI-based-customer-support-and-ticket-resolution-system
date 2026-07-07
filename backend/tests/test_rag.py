@@ -44,7 +44,7 @@ def test_doc_ids_are_unique():
 def test_categories_are_valid():
     """All categories must be from the allowed set."""
     from app.knowledge.sample_docs import KNOWLEDGE_BASE
-    allowed = {"billing", "authentication", "technical", "account", "general"}
+    allowed = {"billing", "authentication", "technical", "account", "general", "company policies", "product features"}
     for doc in KNOWLEDGE_BASE:
         assert doc["category"] in allowed, \
             f"Invalid category '{doc['category']}' in doc {doc['id']}"

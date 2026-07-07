@@ -274,7 +274,8 @@ def test_add_message_triggers_auto_escalation():
     mock_db.escalations_col.insert_one = AsyncMock()
     try:
         with patch("app.routes.chat.get_db", return_value=mock_db), \
-             patch("app.services.escalation_service.get_db", return_value=mock_db):
+             patch("app.services.escalation_service.get_db", return_value=mock_db), \
+             patch("app.services.escalation_service._find_best_agent_for_category", new_callable=AsyncMock, return_value=None):
             response = client.post("/chat/chat_123/message", json={
                 "role": "user", "content": "I need to speak to a human right now"
             })

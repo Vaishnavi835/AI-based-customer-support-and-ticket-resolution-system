@@ -170,9 +170,15 @@ def test_delete_ticket_forbidden_for_customer():
 
 def test_update_ticket_forbidden_for_customer():
     override_user(role="customer")
+    mock_ticket = {
+        "id": "some_id",
+        "user_id": "different_user",
+        "status": "open",
+    }
     try:
-        response = client.patch("/tickets/some_id", json={"status": "pending"})
-        assert response.status_code == 403
+        with patch("app.routes.tickets.get_ticket_by_id", return_value=mock_ticket):
+            response = client.patch("/tickets/some_id", json={"status": "pending"})
+            assert response.status_code == 403
     finally:
         clear_overrides()
 

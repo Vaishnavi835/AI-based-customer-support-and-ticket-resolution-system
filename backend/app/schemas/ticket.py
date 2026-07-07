@@ -40,31 +40,29 @@ VALID_TRANSITIONS = {
     Status.open: [
         Status.pending,
         Status.escalated,
-        Status.resolved,   # customer self-solved
-        Status.closed,     # agent/AI solved
+        Status.resolved,
+        Status.closed,
     ],
 
     Status.pending: [
         Status.escalated,
-        Status.resolved,   # customer self-solved
-        Status.closed,     # agent/AI solved
+        Status.resolved,
+        Status.closed,
     ],
 
     Status.escalated: [
         Status.pending,
-        Status.resolved,   # customer self-solved
-        Status.closed,     # agent/AI solved
+        Status.resolved,
+        Status.closed,
     ],
 
-    # Resolved = customer self-solved. Can reopen if needed.
+    # Resolved = customer self-solved. Can only transition to closed.
     Status.resolved: [
-        Status.open,       # customer reopens
+        Status.closed,
     ],
 
-    # Closed = solved by agent/AI. Can reopen if needed.
-    Status.closed: [
-        Status.open,       # reopen
-    ],
+    # Closed = solved by agent/AI. Terminal state.
+    Status.closed: [],
 }
 
 

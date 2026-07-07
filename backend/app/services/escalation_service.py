@@ -113,6 +113,12 @@ def detect_escalation_reason(
     if check_contextual_trigger(message, messages):
         return EscalationReason.keyword_match
 
+    if check_risk_score_trigger(ticket):
+        return EscalationReason.high_risk_score
+
+    if check_sentiment_trigger(ticket):
+        return EscalationReason.negative_sentiment
+
     if check_turn_count_trigger(messages):
         return EscalationReason.high_turn_count
 
