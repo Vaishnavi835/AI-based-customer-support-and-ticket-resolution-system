@@ -109,7 +109,7 @@ function DemoEscalation({ step }) {
               </div>
               <div>Category: <strong>Database / DevOps</strong></div>
               <div>Priority: <strong>Critical (Sev-1)</strong></div>
-              <div>Confidence: <strong>99.4%</strong></div>
+
             </div>
           </div>
         )}
@@ -206,8 +206,9 @@ export default function Login() {
   const [error,        setError]        = useState("");
   const [loading,      setLoading]      = useState(false);
   const [captchaOk,    setCaptchaOk]    = useState(false);
+  const [captchaReset, setCaptchaReset] = useState(false);
 
-  const { login }  = useAuth();
+  const { login, socialLogin }  = useAuth();
   const navigate   = useNavigate();
   const toast      = useToast();
 
@@ -237,6 +238,48 @@ export default function Login() {
       setError(msg);
       toast.error(msg);
       setCaptchaOk(false);
+      setCaptchaReset(r => !r); // toggle to trigger captcha reset
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider) => {
+    setError("");
+
+    if (!captchaOk) {
+      setError("Please complete the human verification puzzle.");
+      toast.warning("Please complete the human verification puzzle.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let email = prompt(`Please enter your ${provider === 'google' ? 'Google' : 'Microsoft'} email address for this demo:`);
+      if (!email) {
+        setLoading(false);
+        return;
+      }
+      
+      let name = email.split('@')[0];
+      // Capitalize the first letter of the name
+      name = name.charAt(0).toUpperCase() + name.slice(1);
+      
+      const user = await socialLogin(provider, email, name);
+      toast.success(`Welcome back, ${user.name || 'User'}!`);
+      if (user.role === "admin") {
+        navigate("/dashboard");
+      } else if (user.role === "support_agent") {
+        navigate("/agent-dashboard");
+      } else {
+        navigate("/my-tickets");
+      }
+    } catch (err) {
+      const msg = err.response?.data?.detail || `${provider} login failed.`;
+      setError(msg);
+      toast.error(msg);
+      setCaptchaOk(false);
+      setCaptchaReset(r => !r); // toggle to trigger captcha reset
     } finally {
       setLoading(false);
     }
@@ -267,7 +310,7 @@ export default function Login() {
           {error && <div className="alert alert-error">{error}</div>}
 
           <div className="social-login-grid">
-            <button className="btn-social" type="button" id="btn-google-login" onClick={() => alert('Google login coming soon!')}>
+            <button className="btn-social" type="button" id="btn-google-login" onClick={() => handleSocialLogin("google")} disabled={loading}>
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -276,7 +319,7 @@ export default function Login() {
               </svg>
               Google
             </button>
-            <button className="btn-social" type="button" id="btn-microsoft-login" onClick={() => alert('Microsoft login coming soon!')}>
+            <button className="btn-social" type="button" id="btn-microsoft-login" onClick={() => handleSocialLogin("microsoft")} disabled={loading}>
               <svg viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
                 <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
@@ -339,13 +382,16 @@ export default function Login() {
             </div>
 
             {/* ── Custom Puzzle CAPTCHA ─────────────────── */}
-            <CustomCaptcha onVerified={(ok) => setCaptchaOk(ok)} />
+            <CustomCaptcha
+              onVerified={(ok) => { setCaptchaOk(ok); setCaptchaReset(false); }}
+              reset={captchaReset}
+            />
 
             {/* Enhanced CTA button */}
             <button
               id="btn-sign-in"
               type="submit"
-              className={`register-submit register-submit--premium ${captchaOk && email && password ? "register-submit--indigo" : ""}`}
+              className="register-submit register-submit--brand"
               disabled={loading || !captchaOk || !email || !password}
             >
               {loading ? "Signing in…" : <>Sign In <span className="btn-arrow">→</span></>}

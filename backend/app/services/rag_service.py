@@ -2,7 +2,7 @@
 RAG Service — Retrieval Augmented Generation
 ============================================
 
-Day 19 additions.
+
   - search_knowledge_base() now accepts a threshold param
     (filters out low-relevance docs so Gemini doesn't hallucinate on garbage context)
   - generate_rag_response() now accepts conversation_history
@@ -191,7 +191,7 @@ async def reindex_rag():
 async def search_knowledge_base(
     query:     str,
     top_k:     int   = 3,
-    threshold: float = 1.3,     # Day 19: NEW param
+    threshold: float = 1.5,     # Increased to 1.5 for long-form document matching
 ) -> list:
     """
     Convert the query to an embedding and find the top_k most semantically
@@ -233,7 +233,7 @@ async def search_knowledge_base(
             for idx, distance in zip(I[0], D[0]):
                 if idx == -1:
                     continue
-                # Day 19: filter out low-relevance results
+                # filter out low-relevance results
                 if distance > threshold:
                     logger.debug(
                         f"RAG: Skipping doc '{doc_store[idx]['title']}' "
@@ -273,12 +273,16 @@ async def generate_rag_response(
     from app.services.ai_service import client
 
     relevant_docs = await search_knowledge_base(question, top_k=3)
+    # FALLBACK: If query yields no docs and ticket context is available, use ticket details
+    if not relevant_docs and ticket_context:
+        fallback_query = f"{ticket_context.get('title', '')} {ticket_context.get('description', '')}"
+        relevant_docs = await search_knowledge_base(fallback_query, top_k=3)
 
     prompt = _build_rag_prompt(
         question=question,
         relevant_docs=relevant_docs,
         ticket_context=ticket_context,
-        conversation_history=conversation_history,  # Day 19
+        conversation_history=conversation_history,  
     )
 
     try:
@@ -317,13 +321,11 @@ def _build_rag_prompt(
       6. Output instruction
     """
     prompt = (
-        "You are a helpful customer support assistant. "
-        "First, determine if you have enough details from the customer to understand their specific issue. "
-        "If their request is vague or lacks necessary details, politely ask clarifying questions before attempting to provide a solution. "
-        "Once you have enough details, answer the customer's question using ONLY the knowledge base "
-        "information provided below. "
-        "If the answer is not in the knowledge base, say so honestly "
-        "and offer to connect them with a human agent.\n\n"
+        "You are a highly capable customer support AI. Your goal is to solve the customer's problem completely without transferring to a human agent, unless absolutely necessary. "
+        "Act as an L2 support engineer. Provide direct, actionable solutions, step-by-step troubleshooting, and clear explanations. "
+        "Use the following knowledge base information to answer the user's question if possible. "
+        "If the knowledge base doesn't contain the exact answer, use your general knowledge and logic to deduce a solution. "
+        "Do not prematurely tell the user to contact support or that you will escalate the issue. Try to resolve the issue yourself first.\n\n"
     )
 
     # 1. Ticket context
@@ -361,8 +363,9 @@ def _build_rag_prompt(
 
     prompt += f"Customer question: {question}\n\n"
     prompt += (
-        "Please provide a clear, helpful answer based on the knowledge base above. "
-        "Be specific and reference the relevant policy or procedure."
+        "Please provide a clear, actionable, and helpful answer. "
+        "Provide step-by-step solutions and resolve the problem yourself. "
+        "Do not offer to escalate the ticket or transfer to an agent unless explicitly requested by the customer."
     )
 
     return prompt

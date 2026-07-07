@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import { ticketsAPI } from '../api/services';
-import { RefreshCw, Tag, PieChart as PieChartIcon, Target } from 'lucide-react';
+import { RefreshCw, Tag, PieChart as PieChartIcon, Target, Heart } from 'lucide-react';
 
 const COLORS = ['#6C63FF', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#3B82F6', '#14B8A6'];
 
@@ -70,11 +70,11 @@ export default function TicketStatistics() {
               {data?.categories?.length > 0 ? (
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={data.categories} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value">
+                    <Pie data={data.categories} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
                       {data.categories.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Pie>
                     <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} itemStyle={{ color: '#0F172A', fontWeight: 600 }} />
-                    <Legend iconType="circle" />
+                    <Legend iconType="circle" verticalAlign="bottom" align="center" />
                   </PieChart>
                 </ResponsiveContainer>
               ) : <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>No data</div>}
@@ -92,11 +92,39 @@ export default function TicketStatistics() {
               {data?.statuses?.length > 0 ? (
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={data.statuses} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value">
+                    <Pie data={data.statuses} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
                       {data.statuses.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />)}
                     </Pie>
                     <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} itemStyle={{ color: '#0F172A', fontWeight: 600 }} />
-                    <Legend iconType="circle" />
+                    <Legend iconType="circle" verticalAlign="bottom" align="center" />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>No data</div>}
+            </div>
+          </div>
+
+          {/* ── Customer Sentiment Breakdown ────────────────────── */}
+          <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '24px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <Heart size={20} color="#EC4899" />
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: '#0F172A' }}>Customer Sentiment</h3>
+            </div>
+            
+            <div style={{ width: '100%', height: 300 }}>
+              {data?.sentiments?.length > 0 ? (
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={data.sentiments} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name.toUpperCase()} (${(percent * 100).toFixed(0)}%)`}>
+                      {data.sentiments.map((entry, index) => {
+                        let fill = '#94A3B8';
+                        if (entry.name === 'positive') fill = '#10B981';
+                        if (entry.name === 'negative') fill = '#EF4444';
+                        if (entry.name === 'neutral') fill = '#F59E0B';
+                        return <Cell key={`cell-${index}`} fill={fill} />;
+                      })}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} itemStyle={{ color: '#0F172A', fontWeight: 600 }} />
+                    <Legend iconType="circle" verticalAlign="bottom" align="center" />
                   </PieChart>
                 </ResponsiveContainer>
               ) : <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF' }}>No data</div>}
@@ -104,7 +132,7 @@ export default function TicketStatistics() {
           </div>
 
           {/* ── Priority Breakdown ──────────────────────────────── */}
-          <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '24px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', gridColumn: '1 / -1' }}>
+          <div style={{ background: '#fff', borderRadius: '14px', border: '1px solid #E4E7EC', padding: '24px', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
               <Target size={20} color="#EF4444" />
               <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: '#0F172A' }}>Priority Distribution</h3>
@@ -115,9 +143,9 @@ export default function TicketStatistics() {
                 <ResponsiveContainer>
                   <BarChart data={data.priorities} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B7280' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip cursor={{ fill: '#F3F4F6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} dx={-10} />
+                    <RechartsTooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
                     <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={40}>
                       {data.priorities.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                     </Bar>

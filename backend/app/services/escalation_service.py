@@ -82,6 +82,22 @@ def check_risk_score_trigger(ticket: dict) -> bool:
     return ticket.get("escalation_risk", "low") == "high"
 
 
+def check_contextual_trigger(message: str, messages: list) -> bool:
+    """Return True if AI previously offered an agent and user affirmed."""
+    if not messages:
+        return False
+    
+    last_msg = messages[-1]
+    if last_msg.get("response"):
+        last_response = last_msg["response"].lower()
+        if "human agent" in last_response or "transfer" in last_response or "connect you" in last_response:
+            affirmative = ["yes", "yeah", "yep", "sure", "please", "ok", "okay", "do it", "connect me", "i would"]
+            msg_lower = message.lower().strip().strip(".!?,")
+            if any(msg_lower == word or msg_lower.startswith(word + " ") for word in affirmative):
+                return True
+    return False
+
+
 def detect_escalation_reason(
     message: str,
     messages: list,
@@ -92,6 +108,9 @@ def detect_escalation_reason(
     Returns the first matching reason, or None if no escalation needed.
     """
     if check_keyword_trigger(message):
+        return EscalationReason.keyword_match
+        
+    if check_contextual_trigger(message, messages):
         return EscalationReason.keyword_match
 
     if check_risk_score_trigger(ticket):
@@ -136,6 +155,46 @@ async def _broadcast_escalation_update(chat_id: str, ticket_id: str):
         logging.getLogger(__name__).error(f"Failed to broadcast escalation update: {e}")
 
 
+async def _find_best_agent_for_category(category: str) -> str | None:
+    """
+    Finds the least busy agent in the given department (or 'all').
+    If none found, falls back to any available agent/admin.
+    Returns the agent's _id, or None if no suitable agent is found.
+    """
+    db = get_db()
+    # Find agents in matching department or wildcard 'all'
+    agents = await db.users_col.find({
+        "role": {"$in": ["support_agent", "admin"]},
+        "department": {"$in": [category, "all"]}
+    }).to_list(100)
+
+    if not agents:
+        # Fallback: Find any agent/admin regardless of department
+        agents = await db.users_col.find({
+            "role": {"$in": ["support_agent", "admin"]}
+        }).to_list(100)
+        
+    if not agents:
+        return None
+
+    best_agent_id = None
+    min_workload = float('inf')
+
+    for agent in agents:
+        agent_id = agent["_id"]
+        # Count open tickets/escalations for this agent
+        open_count = await db.tickets_col.count_documents({
+            "assigned_to": agent_id,
+            "status": {"$in": ["open", "pending", "escalated"]}
+        })
+        
+        if open_count < min_workload:
+            min_workload = open_count
+            best_agent_id = agent_id
+
+    return best_agent_id
+
+
 async def create_escalation(
     chat_id:      str,
     ticket_id:    str,
@@ -158,6 +217,13 @@ async def create_escalation(
         existing["id"] = existing.pop("_id")
         return existing
 
+    # Determine ticket category and try to auto-assign
+    ticket = await db.tickets_col.find_one({"_id": ticket_id})
+    category = ticket.get("category", "general") if ticket else "general"
+    
+    assigned_agent_id = await _find_best_agent_for_category(category)
+    status = EscalationStatus.active.value if assigned_agent_id else EscalationStatus.pending.value
+
     doc = {
         "_id":            str(uuid.uuid4()),
         "chat_id":        chat_id,
@@ -165,30 +231,37 @@ async def create_escalation(
         "triggered_by":   triggered_by,
         "reason":         reason.value,
         "note":           note,
-        "status":         EscalationStatus.pending.value,
-        "assigned_agent": None,
+        "status":         status,
+        "assigned_agent": assigned_agent_id,
         "created_at":     _now(),
         "resolved_at":    None,
         "resolution_note": None,
     }
     await db.escalations_col.insert_one(doc)
 
-    # Mark the chat so AI stops replying
+    # Mark the chat so AI stops replying, and assign agent if auto-routed
+    chat_update = {
+        "escalated":    True,
+        "escalated_at": _now(),
+        "updated_at":   _now(),
+    }
+    if assigned_agent_id:
+        chat_update["agent_id"] = assigned_agent_id
+
     await db.chat_col.update_one(
         {"_id": chat_id},
-        {"$set": {
-            "escalated":    True,
-            "escalated_at": _now(),
-            "updated_at":   _now(),
-        }}
+        {"$set": chat_update}
     )
 
     # Also escalate the ticket status if it's still open/pending
-    ticket = await db.tickets_col.find_one({"_id": ticket_id})
     if ticket and ticket.get("status") in ["open", "pending"]:
+        ticket_update = {"status": "escalated", "updated_at": _now()}
+        if assigned_agent_id:
+            ticket_update["assigned_to"] = assigned_agent_id
+            
         await db.tickets_col.update_one(
             {"_id": ticket_id},
-            {"$set": {"status": "escalated", "updated_at": _now()}}
+            {"$set": ticket_update}
         )
 
     doc["id"] = doc.pop("_id")

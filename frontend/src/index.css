@@ -99,7 +99,7 @@ a:hover { text-decoration: underline; }
 
 .zd-rail {
   width: 84px;
-  background: #0F172A; /* Deep dark slate */
+  background: #18181b; /* Classy charcoal grey */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -172,8 +172,8 @@ a:hover { text-decoration: underline; }
 }
 
 .zd-rail__link.active {
-  background: rgba(99, 102, 241, 0.2);
-  color: #818CF8;
+  background: rgba(196, 104, 61, 0.2);
+  color: #E8A87C;
 }
 
 .zd-rail__bottom {
@@ -206,7 +206,7 @@ a:hover { text-decoration: underline; }
 /* ── Secondary Panel ─────────────────────────────────────────────── */
 .zd-panel {
   width: 230px;
-  background: #1E293B; /* Dark slate panel background */
+  background: #27272a; /* Slate graphite panel */
   border-right: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
@@ -3363,6 +3363,12 @@ a:hover { text-decoration: underline; }
   color: #fff;
 }
 .td-action-btn--amber:hover { background: #D97706; }
+.td-action-btn--gray {
+  background: #F3F4F6;
+  color: #374151;
+  border: 1px solid #D1D5DB;
+}
+.td-action-btn--gray:hover { background: #E5E7EB; }
 
 /* ── Chat Area ───────────────────────────────────────────────────── */
 .td-chat-area {
@@ -4839,14 +4845,25 @@ tr.clickable-row:hover td {
   transform: translateY(-2px) !important;
 }
 
-.register-submit--indigo {
-  background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%) !important;
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+.register-submit--blue {
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%) !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25), inset 0 1px 0 rgba(255,255,255,0.1) !important;
   color: #FFFFFF !important;
 }
-.register-submit--indigo:hover:not(:disabled) {
-  background: linear-gradient(135deg, #3730A3 0%, #4F46E5 100%) !important;
-  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4) !important;
+.register-submit--blue:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%) !important;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+.register-submit--brand {
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%) !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+  color: #FFFFFF !important;
+}
+.register-submit--brand:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0F172A 0%, #000000 100%) !important;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.4) !important;
   transform: translateY(-2px) !important;
 }
 

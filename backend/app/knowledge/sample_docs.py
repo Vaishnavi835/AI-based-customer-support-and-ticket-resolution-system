@@ -95,4 +95,45 @@ KNOWLEDGE_BASE = [
             "Data exports are limited to once per 30 days."
         ),
     },
+    {
+        "id": "kb_009",
+        "category": "account",
+        "title": "Account Setup Guide",
+        "content": (
+            "To set up your account, enter your full name, email, and a secure password. "
+            "You must verify your email by clicking the confirmation link sent to your inbox. "
+            "Profile settings can be adjusted in the profile dashboard, including updating your avatar and email."
+        ),
+    },
+    {
+        "id": "kb_010",
+        "category": "general",
+        "title": "Getting Started with Nexus",
+        "content": (
+            "Nexus is our intelligent customer support platform. To get started, you can browse "
+            "active tickets, escalate unresolved conversations, and chat with AI assistant. "
+            "Support team is available 24/7. Response times depend on ticket severity: critical issues "
+            "are addressed under 15 minutes."
+        ),
+    },
+    {
+        "id": "kb_011",
+        "category": "company policies",
+        "title": "Privacy Policy and GDPR Summary",
+        "content": (
+            "We value your privacy and comply with GDPR requirements. We collect minimal personal data "
+            "including name and email for authentication. You have the right to request deletion of your account "
+            "and export all your data via the settings panel at any time. We retain logs for up to 30 days."
+        ),
+    },
+    {
+        "id": "kb_012",
+        "category": "product features",
+        "title": "Nexus Product Features and Integrations",
+        "content": (
+            "Nexus includes a live real-time dashboard, ticketing queue, agent workspace, and an automated "
+            "AI triage system. We support webhooks and API integrations to sync with third-party software like "
+            "Slack and Jira. View details on each product plan from the product comparison page."
+        ),
+    },
 ]

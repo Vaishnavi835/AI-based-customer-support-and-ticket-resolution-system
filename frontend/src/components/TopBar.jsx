@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bell, Menu, ChevronDown } from 'lucide-react';
+import { Bell, Menu, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { notificationsAPI } from '../api/services';
 import { useWebSocketEvent } from '../context/WebSocketContext';
@@ -35,23 +35,11 @@ export default function TopBar({ title, onToggleSidebar }) {
       notificationsAPI.list()
         .then((res) => {
           const list = res.data || [];
-          if (list.length === 0) {
-            setNotifications([
-              { id: "n1", text: "Ticket #231 updated", unread: true, created_at: new Date(Date.now() - 10 * 60_000).toISOString() },
-              { id: "n2", text: "Payment issue resolved", unread: true, created_at: new Date(Date.now() - 35 * 60_000).toISOString() },
-              { id: "n3", text: "Agent replied to payment query", unread: true, created_at: new Date(Date.now() - 120 * 60_000).toISOString() },
-            ]);
-          } else {
-            setNotifications(list);
-          }
+          setNotifications(list);
         })
         .catch((err) => {
           console.error("Failed to load notifications", err);
-          setNotifications([
-            { id: "n1", text: "Ticket #231 updated", unread: true, created_at: new Date(Date.now() - 10 * 60_000).toISOString() },
-            { id: "n2", text: "Payment issue resolved", unread: true, created_at: new Date(Date.now() - 35 * 60_000).toISOString() },
-            { id: "n3", text: "Agent replied to payment query", unread: true, created_at: new Date(Date.now() - 120 * 60_000).toISOString() },
-          ]);
+          setNotifications([]);
         });
     }
   }, [user]);
@@ -106,15 +94,7 @@ export default function TopBar({ title, onToggleSidebar }) {
         <h1 className="topbar__title">{title || 'Dashboard'}</h1>
       </div>
 
-      {/* Center: Search */}
-      <div className="topbar__search">
-        <Search size={16} className="topbar__search-icon" />
-        <input
-          className="topbar__search-input"
-          placeholder="Search..."
-        />
-        <span className="topbar__search-kbd">⌘K</span>
-      </div>
+
 
       {/* Right: Actions */}
       <div className="topbar__right">

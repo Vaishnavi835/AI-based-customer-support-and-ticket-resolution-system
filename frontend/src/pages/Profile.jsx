@@ -4,9 +4,9 @@ import { useAuth } from "../context/AuthContext";
 import { usersAPI, ticketsAPI, authAPI } from "../api/services";
 import { useToast } from "../context/ToastContext";
 import { 
-  User, Shield, Bell, Lock, LogOut, 
-  Mail, Phone, Building, Calendar, Tag, 
-  CheckCircle, AlertTriangle, Key, Cpu, Laptop, Smartphone
+  User, Shield, Bell, Lock,
+  Calendar, Tag, 
+  CheckCircle, Laptop, Smartphone
 } from "lucide-react";
 
 export default function Profile() {
@@ -51,6 +51,9 @@ export default function Profile() {
   const [sessions, setSessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
 
+  /* Security action states */
+  const [isLoggingOutOthers, setIsLoggingOutOthers] = useState(false);
+
   const getDeviceIcon = (deviceStr) => {
     const d = (deviceStr || "").toLowerCase();
     if (d.includes("phone") || d.includes("ios") || d.includes("android") || d.includes("mobile")) {
@@ -64,7 +67,7 @@ export default function Profile() {
     try {
       const d = new Date(active);
       return `Last active: ${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    } catch (e) {
+    } catch {
       return `Last active: ${active}`;
     }
   };
@@ -190,7 +193,6 @@ export default function Profile() {
     toast.success("Notification preferences saved.");
   };
 
-  const [isLoggingOutOthers, setIsLoggingOutOthers] = useState(false);
   const handleLogoutOtherDevices = async () => {
     setIsLoggingOutOthers(true);
     try {

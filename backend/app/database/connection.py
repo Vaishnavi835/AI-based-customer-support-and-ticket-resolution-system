@@ -29,8 +29,14 @@ async def connect_db():
     mongo_url  = os.getenv("MONGO_URL", "mongodb://localhost:27017")
     db_name    = os.getenv("DB_NAME",   "ai_support_db")
     try:
-        # Use serverSelectionTimeoutMS=5000 to timeout connection after 5 seconds
-        db_instance.client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
+        kwargs = {"serverSelectionTimeoutMS": 5000}
+        if "localhost" not in mongo_url and "127.0.0.1" not in mongo_url:
+            try:
+                import certifi
+                kwargs["tlsCAFile"] = certifi.where()
+            except ImportError:
+                pass
+        db_instance.client = AsyncIOMotorClient(mongo_url, **kwargs)
         db_instance.db     = db_instance.client[db_name]
 
         # Load collection handles
